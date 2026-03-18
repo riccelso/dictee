@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """transcribe-daemon-vosk — Serveur de transcription Vosk via socket Unix.
 
 Même protocole que le daemon Rust : le client envoie un chemin WAV (une ligne),
