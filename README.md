@@ -150,6 +150,10 @@ Each backend runs as a systemd user service — same Unix socket protocol, fully
 | **LibreTranslate** | 100% local | 0.1–0.3s | Good | Docker (~2 GB image) |
 | **ollama** | 100% local | 2.3–3.4s | Best | ollama + translategemma model |
 
+### Grammar Correction
+
+`dictee --setup` can also enable optional LLM grammar correction in the post-processing pipeline. The setup UI supports `ollama`, `OpenAI`, `Gemini`, `Claude`, and `Groq`, with an editable model field per provider. For remote providers, you can use API keys from environment variables (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `GROQ_API_KEY`) or enter them directly in the setup UI (stored in `dictee.conf`).
+
 ---
 
 ## Visual interfaces

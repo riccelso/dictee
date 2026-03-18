@@ -8,7 +8,7 @@ Lit le texte transcrit sur stdin, applique séquentiellement :
   4.  Typographie française (espaces insécables)
   5.  Dictionnaire (système + personnel, avec matching phonétique jellyfish)
   6.  Capitalisation
-  7.  Correction LLM optionnelle (ollama)
+  7.  Correction LLM optionnelle (ollama / OpenAI / Gemini / Claude / Groq)
 
 Écrit le résultat sur stdout.
 
@@ -20,14 +20,22 @@ Configuration via variables d'environnement :
   DICTEE_PP_CAPITALIZATION — true/false (défaut: true)  — capitalisation automatique
   DICTEE_PP_FUZZY_DICT     — true/false (défaut: true)  — matching phonétique dictionnaire
   DICTEE_LLM_POSTPROCESS   — true/false (défaut: false) — correction LLM
-  DICTEE_LLM_MODEL         — modèle ollama (défaut: gemma3:4b)
+  DICTEE_LLM_PROVIDER      — ollama/openai/gemini/anthropic/groq (défaut: ollama)
+  DICTEE_LLM_MODEL         — modèle LLM (défaut: gemma3:4b)
   DICTEE_LLM_TIMEOUT       — timeout en secondes (défaut: 10)
+  DICTEE_LLM_CPU           — true/false (ollama uniquement)
+
+Clés API distantes lues depuis l'environnement :
+  OPENAI_API_KEY / GEMINI_API_KEY / ANTHROPIC_API_KEY / GROQ_API_KEY
 """
 
+import json
 import os
 import re
 import sys
 import subprocess
+import urllib.error
+import urllib.request
 
 # ── Venv bootstrap ───────────────────────────────────────────────────
 # If a dedicated venv exists (with text2num, jellyfish, etc.),
@@ -71,6 +79,14 @@ LANG = os.environ.get("DICTEE_LANG_SOURCE", "").lower()[:2]
 def _env_bool(var, default="true"):
     """Lit une variable d'environnement booléenne."""
     return os.environ.get(var, default).lower() == "true"
+
+
+def _env_int(var, default):
+    """Lit une variable d'environnement entière."""
+    try:
+        return int(os.environ.get(var, str(default)))
+    except (TypeError, ValueError):
+        return default
 
 
 # ── Chargement des règles regex ──────────────────────────────────────
@@ -392,7 +408,7 @@ def fix_capitalization(text):
     return text
 
 
-# ── Correction LLM (ollama) ─────────────────────────────────────────
+# ── Correction LLM ──────────────────────────────────────────────────
 
 DEFAULT_PROMPT = (
     "<role>\n"
@@ -421,22 +437,157 @@ def _load_prompt():
     return DEFAULT_PROMPT
 
 
-def llm_postprocess(text):
-    """Envoie le texte à ollama pour correction grammaticale."""
-    model = os.environ.get("DICTEE_LLM_MODEL", "gemma3:4b")
-    timeout = int(os.environ.get("DICTEE_LLM_TIMEOUT", "10"))
+def _http_json(url, payload, headers, timeout):
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError, OSError):
+        return None
 
-    prompt_tpl = _load_prompt()
-    prompt = prompt_tpl.format(text=text)
 
+def ollama_postprocess(text, prompt, model, timeout):
+    env = os.environ.copy()
+    if _env_bool("DICTEE_LLM_CPU", "false"):
+        env["OLLAMA_NUM_GPU"] = "0"
     try:
         result = subprocess.run(
             ["ollama", "run", model, prompt],
-            capture_output=True, text=True, timeout=timeout,
+            capture_output=True, text=True, timeout=timeout, env=env,
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return None
+    return None
+
+
+def openai_postprocess(text, prompt, model, timeout):
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return None
+    payload = {
+        "model": model,
+        "input": prompt,
+    }
+    data = _http_json(
+        "https://api.openai.com/v1/responses",
+        payload,
+        {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        timeout,
+    )
+    if not data:
+        return None
+    output_text = data.get("output_text")
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text.strip()
+    for item in data.get("output", []):
+        for content in item.get("content", []):
+            text_value = content.get("text")
+            if isinstance(text_value, str) and text_value.strip():
+                return text_value.strip()
+    return None
+
+
+def gemini_postprocess(text, prompt, model, timeout):
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return None
+    data = _http_json(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
+        {"contents": [{"parts": [{"text": prompt}]}]},
+        {"Content-Type": "application/json"},
+        timeout,
+    )
+    if not data:
+        return None
+    for candidate in data.get("candidates", []):
+        content = candidate.get("content", {})
+        for part in content.get("parts", []):
+            text_value = part.get("text")
+            if isinstance(text_value, str) and text_value.strip():
+                return text_value.strip()
+    return None
+
+
+def anthropic_postprocess(text, prompt, model, timeout):
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return None
+    data = _http_json(
+        "https://api.anthropic.com/v1/messages",
+        {
+            "model": model,
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+        {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        },
+        timeout,
+    )
+    if not data:
+        return None
+    for item in data.get("content", []):
+        text_value = item.get("text")
+        if isinstance(text_value, str) and text_value.strip():
+            return text_value.strip()
+    return None
+
+
+def groq_postprocess(text, prompt, model, timeout):
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        return None
+    data = _http_json(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+        {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        timeout,
+    )
+    if not data:
+        return None
+    for choice in data.get("choices", []):
+        message = choice.get("message", {})
+        text_value = message.get("content")
+        if isinstance(text_value, str) and text_value.strip():
+            return text_value.strip()
+    return None
+
+
+def llm_postprocess(text):
+    """Envoie le texte au provider LLM configuré pour correction grammaticale."""
+    provider = os.environ.get("DICTEE_LLM_PROVIDER", "ollama").strip().lower() or "ollama"
+    model = os.environ.get("DICTEE_LLM_MODEL", "gemma3:4b")
+    timeout = _env_int("DICTEE_LLM_TIMEOUT", 10)
+    prompt_tpl = _load_prompt()
+    prompt = prompt_tpl.format(text=text)
+
+    handlers = {
+        "ollama": ollama_postprocess,
+        "openai": openai_postprocess,
+        "gemini": gemini_postprocess,
+        "anthropic": anthropic_postprocess,
+        "groq": groq_postprocess,
+    }
+    handler = handlers.get(provider, ollama_postprocess)
+    try:
+        corrected = handler(text, prompt, model, timeout)
+        if corrected:
+            return corrected
+    except Exception:
         pass
     return text  # fallback : texte inchangé
 

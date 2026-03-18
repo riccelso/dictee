@@ -25,7 +25,7 @@ try:
         QApplication, QDialog, QVBoxLayout, QHBoxLayout, QGroupBox,
         QLabel, QPushButton, QRadioButton, QButtonGroup, QComboBox,
         QFormLayout, QProgressBar, QMessageBox, QSizePolicy, QCheckBox,
-        QFrame, QScrollArea, QWidget, QStackedWidget, QSlider, QTextEdit,
+        QFrame, QLineEdit, QScrollArea, QWidget, QStackedWidget, QSlider, QTextEdit,
         QToolTip, QGridLayout,
     )
     from PyQt6.QtMultimedia import QAudioSource, QAudioFormat, QMediaDevices
@@ -36,7 +36,7 @@ except ImportError:
         QApplication, QDialog, QVBoxLayout, QHBoxLayout, QGroupBox,
         QLabel, QPushButton, QRadioButton, QButtonGroup, QComboBox,
         QFormLayout, QProgressBar, QMessageBox, QSizePolicy, QCheckBox, QGridLayout,
-        QFrame, QScrollArea, QWidget, QStackedWidget, QSlider, QTextEdit,
+        QFrame, QLineEdit, QScrollArea, QWidget, QStackedWidget, QSlider, QTextEdit,
         QToolTip,
     )
     from PySide6.QtMultimedia import QAudioSource, QAudioFormat, QMediaDevices
@@ -119,6 +119,28 @@ TRANSLATE_LANGUAGES = {
     "trans:bing": None,
     "ollama": None,
     "libretranslate": None,  # Dynamique — filtré via les langues installées
+}
+
+LLM_PROVIDER_ORDER = ["ollama", "openai", "gemini", "anthropic", "groq"]
+LLM_PROVIDER_LABELS = {
+    "ollama": "ollama",
+    "openai": "OpenAI",
+    "gemini": "Gemini",
+    "anthropic": "Claude",
+    "groq": "Groq",
+}
+LLM_PROVIDER_MODELS = {
+    "ollama": ["ministral:3b", "gemma3:4b", "gemma3:1b"],
+    "openai": ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"],
+    "gemini": ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
+    "anthropic": ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5"],
+    "groq": ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "openai/gpt-oss-120b", "openai/gpt-oss-20b"],
+}
+LLM_PROVIDER_ENV_VARS = {
+    "openai": "OPENAI_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "groq": "GROQ_API_KEY",
 }
 
 DICTEE_COMMAND = "/usr/bin/dictee"
@@ -215,8 +237,10 @@ def save_config(backend, lang_source, lang_target, clipboard=True, animation="sp
                 ptt_mod_translate="", postprocess=True,
                 pp_elisions=True, pp_numbers=True, pp_typography=True,
                 pp_capitalization=True, pp_fuzzy_dict=True,
-                llm_postprocess=False, llm_model="ministral:3b",
-                llm_timeout=10, llm_cpu=False):
+                llm_postprocess=False, llm_provider="ollama", llm_model="gemma3:4b",
+                llm_timeout=10, llm_cpu=False,
+                llm_openai_api_key="", llm_gemini_api_key="",
+                llm_anthropic_api_key="", llm_groq_api_key=""):
     """Écrit dictee.conf (sans DICTEE_TRANSLATE — le déclenchement est au runtime)."""
     os.makedirs(os.path.dirname(CONF_PATH), exist_ok=True)
     with open(CONF_PATH, "w") as f:
@@ -266,10 +290,19 @@ def save_config(backend, lang_source, lang_target, clipboard=True, animation="sp
             f.write("DICTEE_PP_FUZZY_DICT=false\n")
         if llm_postprocess:
             f.write(f"DICTEE_LLM_POSTPROCESS=true\n")
+            f.write(f"DICTEE_LLM_PROVIDER={llm_provider}\n")
             f.write(f"DICTEE_LLM_MODEL={llm_model}\n")
             f.write(f"DICTEE_LLM_TIMEOUT={llm_timeout}\n")
-            if llm_cpu:
+            if llm_provider == "ollama" and llm_cpu:
                 f.write("DICTEE_LLM_CPU=true\n")
+        if llm_openai_api_key:
+            f.write(f"OPENAI_API_KEY={llm_openai_api_key}\n")
+        if llm_gemini_api_key:
+            f.write(f"GEMINI_API_KEY={llm_gemini_api_key}\n")
+        if llm_anthropic_api_key:
+            f.write(f"ANTHROPIC_API_KEY={llm_anthropic_api_key}\n")
+        if llm_groq_api_key:
+            f.write(f"GROQ_API_KEY={llm_groq_api_key}\n")
 
 
 # === Raccourci KDE ===
@@ -1614,6 +1647,101 @@ class DicteeSetupDialog(QDialog):
         for w in self.findChildren((QComboBox, QSlider)):
             w.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
             w.installEventFilter(self._scroll_guard)
+
+    def _get_saved_llm_provider(self, conf):
+        provider = conf.get("DICTEE_LLM_PROVIDER", "").strip().lower()
+        if provider in LLM_PROVIDER_ORDER:
+            return provider
+        if conf.get("DICTEE_LLM_POSTPROCESS", "false") == "true":
+            return "ollama"
+        return "ollama"
+
+    @staticmethod
+    def _sanitize_env_value(value):
+        return (value or "").replace("\n", "").replace("\r", "").strip()
+
+    def _get_ollama_models(self):
+        models = list(LLM_PROVIDER_MODELS["ollama"])
+        try:
+            out = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=5)
+            if out.returncode == 0:
+                for line in out.stdout.strip().splitlines()[1:]:
+                    parts = line.split()
+                    name = parts[0] if parts else ""
+                    if name and name not in models:
+                        models.append(name)
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            pass
+        return models
+
+    def _get_llm_models(self, provider):
+        if provider == "ollama":
+            return self._get_ollama_models()
+        return list(LLM_PROVIDER_MODELS.get(provider, []))
+
+    def _detect_llm_provider_status(self, provider):
+        if provider == "ollama":
+            return _("Ready") if shutil.which("ollama") else _("ollama is not installed")
+        env_var = LLM_PROVIDER_ENV_VARS.get(provider)
+        configured_key = self._sanitize_env_value(self._llm_api_keys.get(env_var, "")) if env_var else ""
+        if env_var and not (configured_key or os.environ.get(env_var)):
+            return _("missing {env_var}").format(env_var=env_var)
+        return _("Ready")
+
+    def _on_llm_provider_changed(self):
+        prev_provider = getattr(self, "_llm_active_provider", None)
+        if prev_provider in LLM_PROVIDER_ENV_VARS and hasattr(self, "txt_llm_api_key"):
+            prev_env_var = LLM_PROVIDER_ENV_VARS[prev_provider]
+            self._llm_api_keys[prev_env_var] = self._sanitize_env_value(self.txt_llm_api_key.text())
+        self._llm_active_provider = self.cmb_llm_provider.currentData() or "ollama"
+        self._refresh_llm_provider_ui()
+
+    def _on_llm_api_key_changed(self, value):
+        provider = self.cmb_llm_provider.currentData() if hasattr(self, "cmb_llm_provider") else None
+        env_var = LLM_PROVIDER_ENV_VARS.get(provider)
+        if env_var:
+            self._llm_api_keys[env_var] = self._sanitize_env_value(value)
+        self.lbl_llm_status.setText(self._detect_llm_provider_status(provider or "ollama"))
+
+    def _refresh_llm_provider_ui(self):
+        if not hasattr(self, "cmb_llm_provider") or not hasattr(self, "cmb_llm_model"):
+            return
+        provider = self.cmb_llm_provider.currentData() or "ollama"
+        current_text = self.cmb_llm_model.currentText().strip()
+        models = self._get_llm_models(provider)
+
+        self.cmb_llm_model.blockSignals(True)
+        self.cmb_llm_model.clear()
+        for model in models:
+            self.cmb_llm_model.addItem(model)
+        self.cmb_llm_model.blockSignals(False)
+
+        if getattr(self, "_llm_ui_initialized", False):
+            preferred = current_text if current_text in models else (models[0] if models else current_text)
+        else:
+            preferred = current_text or (models[0] if models else "")
+        idx = self.cmb_llm_model.findText(preferred)
+        if idx >= 0:
+            self.cmb_llm_model.setCurrentIndex(idx)
+        else:
+            self.cmb_llm_model.setEditText(preferred)
+
+        is_ollama = provider == "ollama"
+        self.chk_llm_cpu.setVisible(is_ollama)
+        self.lbl_llm_vram.setVisible(is_ollama)
+        api_env_var = LLM_PROVIDER_ENV_VARS.get(provider)
+        has_api_field = api_env_var is not None
+        self.lbl_llm_api_key.setVisible(has_api_field)
+        self.txt_llm_api_key.setVisible(has_api_field)
+        if has_api_field:
+            self.lbl_llm_api_key.setText(_("API key ({env_var}):").format(env_var=api_env_var))
+            self.txt_llm_api_key.blockSignals(True)
+            self.txt_llm_api_key.setText(self._sanitize_env_value(self._llm_api_keys.get(api_env_var, "")))
+            self.txt_llm_api_key.blockSignals(False)
+        else:
+            self.txt_llm_api_key.clear()
+        self.lbl_llm_status.setText(self._detect_llm_provider_status(provider))
+        self._llm_ui_initialized = True
 
     # ── Classic mode ──────────────────────────────────────────────
 
@@ -3053,7 +3181,7 @@ class DicteeSetupDialog(QDialog):
         pp_lay.addWidget(sep)
 
         # LLM correction
-        self.chk_llm = QCheckBox(_("LLM grammar correction (ollama)"))
+        self.chk_llm = QCheckBox(_("LLM grammar correction"))
         self.chk_llm.setChecked(conf.get("DICTEE_LLM_POSTPROCESS", "false") == "true")
         pp_lay.addWidget(self.chk_llm)
 
@@ -3062,38 +3190,49 @@ class DicteeSetupDialog(QDialog):
         llm_lay = QFormLayout(self._llm_widget)
         llm_lay.setContentsMargins(20, 4, 0, 0)
 
+        saved_provider = self._get_saved_llm_provider(conf)
+        saved_model = conf.get("DICTEE_LLM_MODEL", "gemma3:4b")
+        self._llm_api_keys = {
+            "OPENAI_API_KEY": self._sanitize_env_value(conf.get("OPENAI_API_KEY", "")),
+            "GEMINI_API_KEY": self._sanitize_env_value(conf.get("GEMINI_API_KEY", "")),
+            "ANTHROPIC_API_KEY": self._sanitize_env_value(conf.get("ANTHROPIC_API_KEY", "")),
+            "GROQ_API_KEY": self._sanitize_env_value(conf.get("GROQ_API_KEY", "")),
+        }
+        self._llm_active_provider = saved_provider
+
+        self.cmb_llm_provider = QComboBox()
+        for provider in LLM_PROVIDER_ORDER:
+            self.cmb_llm_provider.addItem(LLM_PROVIDER_LABELS[provider], provider)
+        self._set_combo_by_data(self.cmb_llm_provider, saved_provider, 0)
+        llm_lay.addRow(_("Provider:"), self.cmb_llm_provider)
+
         self.cmb_llm_model = QComboBox()
-        saved_model = conf.get("DICTEE_LLM_MODEL", "ministral:3b")
         self.cmb_llm_model.setEditable(True)
-        self.cmb_llm_model.addItem("ministral:3b")
-        self.cmb_llm_model.addItem("gemma3:4b")
-        self.cmb_llm_model.addItem("gemma3:1b")
-        # Détecter les modèles installés
-        try:
-            import subprocess as _sp
-            out = _sp.run(["ollama", "list"], capture_output=True, text=True, timeout=5)
-            if out.returncode == 0:
-                for line in out.stdout.strip().splitlines()[1:]:
-                    name = line.split()[0] if line.split() else ""
-                    if name and self.cmb_llm_model.findText(name) < 0:
-                        self.cmb_llm_model.addItem(name)
-        except (FileNotFoundError, _sp.TimeoutExpired):
-            pass
-        idx = self.cmb_llm_model.findText(saved_model)
-        if idx >= 0:
-            self.cmb_llm_model.setCurrentIndex(idx)
-        else:
-            self.cmb_llm_model.setEditText(saved_model)
         llm_lay.addRow(_("Model:"), self.cmb_llm_model)
+
+        self.lbl_llm_api_key = QLabel(_("API key:"))
+        self.txt_llm_api_key = QLineEdit()
+        self.txt_llm_api_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self.txt_llm_api_key.setPlaceholderText(_("Optional: stored in dictee.conf if set here"))
+        llm_lay.addRow(self.lbl_llm_api_key, self.txt_llm_api_key)
 
         self.chk_llm_cpu = QCheckBox(_("Force CPU (free GPU VRAM)"))
         self.chk_llm_cpu.setChecked(conf.get("DICTEE_LLM_CPU", "false") == "true")
         llm_lay.addRow("", self.chk_llm_cpu)
 
-        lbl_vram = QLabel(
+        self.lbl_llm_vram = QLabel(
             "<i>" + _("~2 GB VRAM with Ministral 3B (+ ~2.5 GB Parakeet)") + "</i>")
-        lbl_vram.setStyleSheet("font-size: 11px; opacity: 0.6;")
-        llm_lay.addRow("", lbl_vram)
+        self.lbl_llm_vram.setStyleSheet("font-size: 11px; opacity: 0.6;")
+        llm_lay.addRow("", self.lbl_llm_vram)
+
+        self.lbl_llm_status = QLabel("")
+        self.lbl_llm_status.setStyleSheet("font-size: 11px; opacity: 0.7;")
+        llm_lay.addRow("", self.lbl_llm_status)
+
+        self.cmb_llm_model.setEditText(saved_model)
+        self.cmb_llm_provider.currentIndexChanged.connect(self._on_llm_provider_changed)
+        self.txt_llm_api_key.textChanged.connect(self._on_llm_api_key_changed)
+        self._refresh_llm_provider_ui()
 
         pp_lay.addWidget(self._llm_widget)
         self._llm_widget.setVisible(self.chk_llm.isChecked())
@@ -4063,8 +4202,20 @@ class DicteeSetupDialog(QDialog):
         pp_capitalization = self.chk_pp_capitalization.isChecked() if hasattr(self, 'chk_pp_capitalization') else True
         pp_fuzzy_dict = self.chk_pp_fuzzy_dict.isChecked() if hasattr(self, 'chk_pp_fuzzy_dict') else True
         llm_postprocess = self.chk_llm.isChecked() if hasattr(self, 'chk_llm') else False
-        llm_model = self.cmb_llm_model.currentText() if hasattr(self, 'cmb_llm_model') else "ministral:3b"
+        llm_provider = self.cmb_llm_provider.currentData() if hasattr(self, 'cmb_llm_provider') else "ollama"
+        llm_model = self.cmb_llm_model.currentText() if hasattr(self, 'cmb_llm_model') else "gemma3:4b"
+        if hasattr(self, "txt_llm_api_key") and llm_provider in LLM_PROVIDER_ENV_VARS:
+            env_var = LLM_PROVIDER_ENV_VARS[llm_provider]
+            self._llm_api_keys[env_var] = self._sanitize_env_value(self.txt_llm_api_key.text())
+        try:
+            llm_timeout = int(self.conf.get("DICTEE_LLM_TIMEOUT", "10") or "10")
+        except ValueError:
+            llm_timeout = 10
         llm_cpu = self.chk_llm_cpu.isChecked() if hasattr(self, 'chk_llm_cpu') else False
+        llm_openai_api_key = self._sanitize_env_value(self._llm_api_keys.get("OPENAI_API_KEY", ""))
+        llm_gemini_api_key = self._sanitize_env_value(self._llm_api_keys.get("GEMINI_API_KEY", ""))
+        llm_anthropic_api_key = self._sanitize_env_value(self._llm_api_keys.get("ANTHROPIC_API_KEY", ""))
+        llm_groq_api_key = self._sanitize_env_value(self._llm_api_keys.get("GROQ_API_KEY", ""))
 
         save_config(backend, lang_src, lang_tgt, clipboard, animation,
                     ollama_model, ollama_cpu, trans_engine, lt_port, lt_langs,
@@ -4078,7 +4229,12 @@ class DicteeSetupDialog(QDialog):
                     pp_typography=pp_typography, pp_capitalization=pp_capitalization,
                     pp_fuzzy_dict=pp_fuzzy_dict,
                     llm_postprocess=llm_postprocess,
-                    llm_model=llm_model, llm_cpu=llm_cpu)
+                    llm_provider=llm_provider, llm_model=llm_model,
+                    llm_timeout=llm_timeout, llm_cpu=llm_cpu,
+                    llm_openai_api_key=llm_openai_api_key,
+                    llm_gemini_api_key=llm_gemini_api_key,
+                    llm_anthropic_api_key=llm_anthropic_api_key,
+                    llm_groq_api_key=llm_groq_api_key)
 
         # Services systemd — recharger d'abord (nécessaire après première install .deb)
         subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True)
