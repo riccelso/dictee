@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """dictee-postprocess — filtre post-traitement pour la dictée vocale.
 
 Lit le texte transcrit sur stdin, applique séquentiellement :
