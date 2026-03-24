@@ -30,6 +30,23 @@ ICON_DIR="$REAL_HOME/.local/share/icons/hicolor/scalable/apps"
 echo "=== Starting Dictée Installation ==="
 echo ""
 
+# 0. Check Python GUI dependency (required by dictee-tray)
+echo "→ Checking Python GUI dependencies"
+if python3 - <<'PY' >/dev/null 2>&1
+import importlib.util
+has_pyqt6 = importlib.util.find_spec("PyQt6") is not None
+has_pyside6 = importlib.util.find_spec("PySide6") is not None
+raise SystemExit(0 if (has_pyqt6 or has_pyside6) else 1)
+PY
+then
+    echo "  [OK] Found Qt Python bindings (PyQt6 or PySide6)"
+else
+    echo "  [WARN] No Qt Python bindings found."
+    echo "        dictee-tray requires PyQt6 or PySide6."
+    echo "        Fedora/Nobara: sudo dnf install python3-pyqt6"
+    echo "        Debian/Ubuntu: sudo apt install python3-pyqt6"
+fi
+
 # 1. Install Rust Binaries (if compiled)
 echo "→ Installing Rust binaries to $PREFIX/bin/"
 RUST_BINARIES=("transcribe" "transcribe-daemon" "transcribe-client" "transcribe-diarize" "transcribe-stream-diarize")

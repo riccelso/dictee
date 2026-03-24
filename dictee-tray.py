@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 """
 dictee-tray — Icône de zone de notification pour dictee
@@ -16,9 +16,17 @@ try:
     from PyQt6.QtGui import QIcon, QAction
     from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 except ImportError:
-    from PySide6.QtCore import Qt, QTimer
-    from PySide6.QtGui import QIcon, QAction
-    from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
+    try:
+        from PySide6.QtCore import Qt, QTimer
+        from PySide6.QtGui import QIcon, QAction
+        from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
+    except ImportError:
+        print("Error: missing Qt Python bindings.", file=sys.stderr)
+        print("Install one of:", file=sys.stderr)
+        print("  - Fedora/Nobara: sudo dnf install python3-pyqt6", file=sys.stderr)
+        print("  - Debian/Ubuntu: sudo apt install python3-pyqt6", file=sys.stderr)
+        print("  - Or via pip:    python3 -m pip install --user PyQt6", file=sys.stderr)
+        sys.exit(1)
 
 
 # === Configuration ===

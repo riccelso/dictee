@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """dictee-plasmoid-level-fft — FFT spectrum analyzer for dictee plasmoid.
 Reads raw s16le mono 16kHz PCM from stdin, writes N frequency band levels to a file.
 Usage: parec ... | dictee-plasmoid-level-fft N /dev/shm/.dictee_audio_bands
