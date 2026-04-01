@@ -51,7 +51,7 @@ _ = gettext.gettext
 STATE_FILE = "/dev/shm/.dictee_state"
 APP_ID = "dictee"
 SERVICES = ("dictee", "dictee-vosk", "dictee-whisper")
-POLL_FAST_MS = 500   # state polling (recording/transcribing)
+POLL_FAST_MS = 500   # state polling (recording/transcribing/llm/translating)
 POLL_SLOW_MS = 3000  # daemon polling (systemctl)
 
 # Icons
@@ -99,6 +99,8 @@ ICON_MAP = {
     "offline": "parakeet-offline",
     "recording": "parakeet-recording",
     "transcribing": "parakeet-transcribing",
+    "llm": "parakeet-transcribing",
+    "translating": "parakeet-transcribing",
 }
 
 
@@ -165,7 +167,7 @@ def read_state():
     try:
         with open(STATE_FILE, "r") as f:
             state = f.read().strip()
-            if state in ("recording", "transcribing"):
+            if state in ("recording", "transcribing", "llm", "translating"):
                 return state
             if state == "cancelled":
                 return "idle"
@@ -264,7 +266,7 @@ class DicteeTray:
                 subprocess.Popen(["dictee"])
         elif reason == QSystemTrayIcon.ActivationReason.MiddleClick:
             # Middle click = cancel
-            if self.state in ("recording", "transcribing"):
+            if self.state in ("recording", "transcribing", "llm", "translating"):
                 subprocess.Popen(["dictee", "--cancel"])
 
     # === State ===
@@ -274,7 +276,7 @@ class DicteeTray:
 
     def _check_state(self):
         file_state = read_state()
-        if file_state in ("recording", "transcribing"):
+        if file_state in ("recording", "transcribing", "llm", "translating"):
             self.state = file_state
         elif self._daemon_active:
             self.state = "idle"
@@ -295,6 +297,8 @@ class DicteeTray:
             "offline": _("Dictation — offline"),
             "recording": _("Dictation — recording") + "\n" + _("Click = stop, Middle = cancel"),
             "transcribing": _("Dictation — transcribing"),
+            "llm": _("Dictation — running LLM"),
+            "translating": _("Dictation — translating"),
         }
         self.tray.setToolTip(tooltips.get(self.state, _("Dictation")))
 
@@ -304,6 +308,8 @@ class DicteeTray:
             "offline": _("Daemon stopped"),
             "recording": _("Recording…"),
             "transcribing": _("Transcribing…"),
+            "llm": _("Running LLM…"),
+            "translating": _("Translating…"),
         }
         self.action_status.setText(labels.get(self.state, _("Daemon stopped")))
 
@@ -312,7 +318,7 @@ class DicteeTray:
         self.action_stop.setEnabled(self.state != "offline")
 
         # Menu: dictation / translation
-        is_busy = self.state in ("recording", "transcribing")
+        is_busy = self.state in ("recording", "transcribing", "llm", "translating")
         self.action_dictee.setText(_("Stop dictation") if is_busy else _("Start dictation"))
         self.action_translate.setText(_("Stop translation") if is_busy else _("Start translation"))
         self.action_dictee.setEnabled(self.state != "offline")

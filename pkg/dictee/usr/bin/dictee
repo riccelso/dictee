@@ -231,6 +231,9 @@ transcribe() {
     # Optional text post-processing (regex, dictionary, LLM correction, etc.).
     # If dictee-postprocess is unavailable, keep legacy behavior.
     if command -v dictee-postprocess >/dev/null 2>&1; then
+        if [ "$LLM_POSTPROCESS" = true ]; then
+            echo "llm" > /dev/shm/.dictee_state 2>/dev/null
+        fi
         printf '%s' "$raw" | DICTEE_LLM_POSTPROCESS="$LLM_POSTPROCESS" dictee-postprocess
     else
         printf '%s' "$raw"
@@ -376,6 +379,7 @@ if [ -f "$PIDFILE" ]; then
 
     if [ "$TRANSLATE" = true ]; then
         # Translate and paste
+        echo "translating" > /dev/shm/.dictee_state 2>/dev/null
         if [ -n "$id" ]; then
             notify-send --replace-id="$id" -t 30000 -i audio-chat-none-symbolic -a Dictee "Translation in progress..."
         fi

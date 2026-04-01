@@ -22,6 +22,7 @@ Configuration via variables d'environnement :
   DICTEE_LLM_POSTPROCESS   — true/false (défaut: false) — correction LLM
   DICTEE_LLM_MODEL         — modèle ollama (défaut: gemma3:4b)
   DICTEE_LLM_TIMEOUT       — timeout en secondes (défaut: 10)
+  DICTEE_LLM_ADDITIONAL_CONTEXT — contexte additionnel injecté dans le prompt LLM
 """
 
 import os
@@ -413,6 +414,7 @@ DEFAULT_PROMPT = (
     "- Return only the corrected text (no comments, no preface).\n"
     "- If no correction is needed, return the original text.\n"
     "</instructions>\n"
+    "{additional_context}"
     "<input>{text}</input>"
 )
 
@@ -430,10 +432,22 @@ def llm_postprocess(text):
     """Envoie le texte à ollama pour correction grammaticale."""
     model = os.environ.get("DICTEE_LLM_MODEL", "gemma3:4b")
     timeout = int(os.environ.get("DICTEE_LLM_TIMEOUT", "10"))
+    additional_context = os.environ.get("DICTEE_LLM_ADDITIONAL_CONTEXT", "").strip()
     debug = _env_bool("DICTEE_LLM_DEBUG", "false")
 
+    additional_context_block = ""
+    if additional_context:
+        additional_context_block = (
+            "<additional_context>\n"
+            f"{additional_context}\n"
+            "</additional_context>\n"
+        )
+
     prompt_tpl = _load_prompt()
-    prompt = prompt_tpl.format(text=text)
+    prompt = prompt_tpl.format(
+        text=text,
+        additional_context=additional_context_block,
+    )
 
     try:
         result = subprocess.run(
