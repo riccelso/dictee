@@ -7,10 +7,11 @@
 # Configurable via environment variables or dictee.conf:
 #   DICTEE_LANG_SOURCE (default: system language), DICTEE_LANG_TARGET (default: en)
 #
-# Usage: dictee [--translate] [--ollama] [--cancel] [--setup]
+# Usage: dictee [--translate] [--ollama] [--llm] [--cancel] [--setup]
 #   dictee                      # transcribe and type
 #   dictee --translate          # transcribe, translate (trans), type
 #   dictee --translate --ollama # translate with ollama
+#   dictee --llm                # transcribe, improve text with LLM, type
 #   dictee --cancel             # cancel current recording
 #   dictee --setup              # open configuration interface
 #
@@ -46,6 +47,7 @@ ID_TMP_FILE="/tmp/notify_dictee"
 MUT_FILE="/tmp/mut_dictee"
 TRANSLATE_BACKEND_FILE="/tmp/translate_dictee_backend"
 TRANSLATE_FLAG_FILE="/tmp/dictee_translate"
+LLM_FLAG_FILE="/tmp/dictee_llm_postprocess"
 
 # Text post-processing (French dictation commands, can be extended)
 POINT_A_LA_LIGNE="| sed -E 's/[,.]?point à la ligne[,.]?/.\n/Ig' | sed -E 's/^\.?//g'"
@@ -55,6 +57,7 @@ SUPPRIME="${POINT_A_LA_LIGNE} ${TROIS_PETITS_POINTS}"
 # Parse arguments — dictee.conf values are defaults, CLI args override them.
 TRANSLATE_BACKEND="${DICTEE_TRANSLATE_BACKEND:-trans}"
 TRANSLATE="${DICTEE_TRANSLATE:-false}"
+LLM_POSTPROCESS="${DICTEE_LLM_POSTPROCESS:-false}"
 CANCEL=false
 
 for arg in "$@"; do
@@ -67,6 +70,9 @@ for arg in "$@"; do
         ;;
     --ollama)
         TRANSLATE_BACKEND="ollama"
+        ;;
+    --llm)
+        LLM_POSTPROCESS=true
         ;;
     --setup)
         exec dictee-setup
@@ -164,6 +170,10 @@ check_dependencies() {
             command -v ollama >/dev/null || missing+=("ollama")
         fi
     fi
+    if [ "$LLM_POSTPROCESS" = true ]; then
+        command -v dictee-postprocess >/dev/null || missing+=("dictee-postprocess")
+        command -v ollama >/dev/null || missing+=("ollama")
+    fi
 
     if [ ${#missing[@]} -gt 0 ]; then
         echo "Missing dependencies: ${missing[*]}" >&2
@@ -208,14 +218,23 @@ cleanup_on_error() {
         notify-send --replace-id="$id" -t 3000 -i audio-chat-none-symbolic -a Dictee "Recording interrupted"
     fi
 
-    rm -f "$ID_TMP_FILE" "$RECORDING_FILE" "$TRANSLATE_BACKEND_FILE" "$TRANSLATE_FLAG_FILE"
+    rm -f "$ID_TMP_FILE" "$RECORDING_FILE" "$TRANSLATE_BACKEND_FILE" "$TRANSLATE_FLAG_FILE" "$LLM_FLAG_FILE"
 
     exit $exit_code
 }
 
 transcribe() {
     local audio_file="$1"
-    eval transcribe-client "$audio_file" $SUPPRIME
+    local raw
+    raw=$(eval transcribe-client "$audio_file" $SUPPRIME)
+
+    # Optional text post-processing (regex, dictionary, LLM correction, etc.).
+    # If dictee-postprocess is unavailable, keep legacy behavior.
+    if command -v dictee-postprocess >/dev/null 2>&1; then
+        printf '%s' "$raw" | DICTEE_LLM_POSTPROCESS="$LLM_POSTPROCESS" dictee-postprocess
+    else
+        printf '%s' "$raw"
+    fi
 }
 
 translate() {
@@ -303,7 +322,7 @@ if [ "$CANCEL" = true ]; then
         else
             notify-send -t 3000 -i audio-chat-none-symbolic -a Dictee "Recording cancelled"
         fi
-        rm -f "$ID_TMP_FILE" "$RECORDING_FILE" "$TRANSLATE_BACKEND_FILE" "$TRANSLATE_FLAG_FILE"
+        rm -f "$ID_TMP_FILE" "$RECORDING_FILE" "$TRANSLATE_BACKEND_FILE" "$TRANSLATE_FLAG_FILE" "$LLM_FLAG_FILE"
     fi
     exit 0
 fi
@@ -319,6 +338,9 @@ if [ -f "$PIDFILE" ]; then
     fi
     if [ -f "$TRANSLATE_BACKEND_FILE" ]; then
         TRANSLATE_BACKEND=$(cat "$TRANSLATE_BACKEND_FILE")
+    fi
+    if [ -f "$LLM_FLAG_FILE" ]; then
+        LLM_POSTPROCESS=true
     fi
 
     id=$(cat "$ID_TMP_FILE" 2>/dev/null)
@@ -393,7 +415,7 @@ if [ -f "$PIDFILE" ]; then
         fi
     fi
 
-    rm -f "$ID_TMP_FILE" "$RECORDING_FILE" "$TRANSLATE_BACKEND_FILE" "$TRANSLATE_FLAG_FILE"
+    rm -f "$ID_TMP_FILE" "$RECORDING_FILE" "$TRANSLATE_BACKEND_FILE" "$TRANSLATE_FLAG_FILE" "$LLM_FLAG_FILE"
     echo "idle" > /dev/shm/.dictee_state 2>/dev/null
 
 else
@@ -405,6 +427,9 @@ else
     if [ "$TRANSLATE" = true ]; then
         touch "$TRANSLATE_FLAG_FILE"
         echo "$TRANSLATE_BACKEND" >"$TRANSLATE_BACKEND_FILE"
+    fi
+    if [ "$LLM_POSTPROCESS" = true ]; then
+        touch "$LLM_FLAG_FILE"
     fi
 
     # Check if mic is muted and unmute

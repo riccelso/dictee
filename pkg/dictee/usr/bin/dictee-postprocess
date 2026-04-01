@@ -396,17 +396,22 @@ def fix_capitalization(text):
 
 DEFAULT_PROMPT = (
     "<role>\n"
-    "Ton rôle est de corriger une transcription provenant d'un ASR. "
-    "Tu n'es pas un assistant conversationnel.\n"
+    "You are correcting raw ASR transcription text. "
+    "You are not a conversational assistant.\n"
     "</role>\n"
     "<instructions>\n"
-    "- Corrige l'orthographe et la grammaire.\n"
-    "- Supprime les répétitions et hésitations.\n"
-    "- Ne modifie jamais le sens ni le contenu.\n"
-    "- Ne réponds pas aux questions et ne les commente pas.\n"
-    "- Ne génère aucun commentaire ni introduction.\n"
-    "- Si tu ne sais pas ou qu'il n'y a rien à modifier, "
-    "renvoie la transcription telle quelle.\n"
+    "- Keep the same language as the input text.\n"
+    "- Correct spelling and grammar.\n"
+    "- Remove obvious hesitations/repetitions.\n"
+    "- Be slightly proactive: if context strongly indicates a tool, product, "
+    "brand, or technical term name, normalize it to the most likely correct form.\n"
+    "- If the sentence order is mildly awkward but understandable, you may do "
+    "light reordering to improve clarity and natural flow.\n"
+    "- Do not aggressively rewrite. If the text is too fragmented or ambiguous, "
+    "prefer minimal edits.\n"
+    "- Keep meaning and content unchanged.\n"
+    "- Return only the corrected text (no comments, no preface).\n"
+    "- If no correction is needed, return the original text.\n"
     "</instructions>\n"
     "<input>{text}</input>"
 )
@@ -425,19 +430,37 @@ def llm_postprocess(text):
     """Envoie le texte à ollama pour correction grammaticale."""
     model = os.environ.get("DICTEE_LLM_MODEL", "gemma3:4b")
     timeout = int(os.environ.get("DICTEE_LLM_TIMEOUT", "10"))
+    debug = _env_bool("DICTEE_LLM_DEBUG", "false")
 
     prompt_tpl = _load_prompt()
     prompt = prompt_tpl.format(text=text)
 
     try:
         result = subprocess.run(
-            ["ollama", "run", model, prompt],
+            ["ollama", "run", "--hidethinking", model, prompt],
             capture_output=True, text=True, timeout=timeout,
         )
+        if debug:
+            stderr = (result.stderr or "").strip().replace("\n", " ")
+            if len(stderr) > 500:
+                stderr = stderr[:500] + "..."
+            print(
+                f"[dictee-postprocess] ollama rc={result.returncode} "
+                f"stdout_len={len((result.stdout or '').strip())} "
+                f"stderr='{stderr}'",
+                file=sys.stderr,
+            )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        pass
+    except subprocess.TimeoutExpired:
+        if debug:
+            print(
+                f"[dictee-postprocess] ollama timeout after {timeout}s",
+                file=sys.stderr,
+            )
+    except (FileNotFoundError, OSError) as e:
+        if debug:
+            print(f"[dictee-postprocess] ollama exec error: {e}", file=sys.stderr)
     return text  # fallback : texte inchangé
 
 

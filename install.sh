@@ -62,7 +62,7 @@ done
 
 # 2. Install Scripts and Python UI (from pkg/ directory)
 echo "→ Installing scripts and UI tools to $PREFIX/bin/"
-SCRIPTS=("dictee" "dictee-setup" "dictee-tray" "dotool" "dotoold")
+SCRIPTS=("dictee" "dictee-postprocess" "dictee-setup" "dictee-tray" "dotool" "dotoold")
 
 for script in "${SCRIPTS[@]}"; do
     if [ -f "$SCRIPT_DIR/pkg/dictee/usr/bin/$script" ]; then
