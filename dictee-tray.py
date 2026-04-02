@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 """
 dictee-tray — Icône de zone de notification pour dictee
@@ -29,6 +29,24 @@ for _d in LOCALE_DIRS:
 gettext.textdomain("dictee")
 _ = gettext.gettext
 
+# === PyQt Bindings Check ===
+try:
+    from PyQt6.QtCore import Qt, QTimer
+    from PyQt6.QtGui import QAction, QIcon
+    from PyQt6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
+except ImportError:
+    try:
+        from PySide6.QtCore import Qt, QTimer
+        from PySide6.QtGui import QAction, QIcon
+        from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
+    except ImportError:
+        print("Error: missing Qt Python bindings.", file=sys.stderr)
+        print("Install one of:", file=sys.stderr)
+        print("  - Fedora/Nobara: sudo dnf install python3-pyqt6", file=sys.stderr)
+        print("  - Debian/Ubuntu: sudo apt install python3-pyqt6", file=sys.stderr)
+        print("  - Or via pip:    python3 -m pip install --user PyQt6", file=sys.stderr)
+        sys.exit(1)
+
 # === Configuration ===
 
 STATE_FILE = "/dev/shm/.dictee_state"
@@ -56,7 +74,8 @@ def _is_dark_theme():
     try:
         result = subprocess.run(
             ["kreadconfig6", "--group", "Colors:Window", "--key", "BackgroundNormal"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if result.returncode == 0 and result.stdout.strip():
             r, g, b = (int(x) for x in result.stdout.strip().split(","))
@@ -66,7 +85,8 @@ def _is_dark_theme():
     try:
         result = subprocess.run(
             ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if "dark" in result.stdout.lower():
             return True
@@ -82,6 +102,8 @@ ICON_MAP = {
     "offline": "parakeet-offline",
     "recording": "parakeet-recording",
     "transcribing": "parakeet-transcribing",
+    "llm": "parakeet-transcribing",
+    "translating": "parakeet-transcribing",
 }
 
 
@@ -94,13 +116,29 @@ def _icon_path(name):
     return None
 
 
+def launch_setup():
+    """Launch setup using the same binary preference as the KDE plasmoid."""
+    candidates = [
+        ["/usr/bin/python3", "/usr/bin/dictee-setup"],
+        ["/usr/bin/dictee-setup"],
+        ["dictee-setup"],
+    ]
+    for cmd in candidates:
+        try:
+            subprocess.Popen(cmd)
+            return
+        except FileNotFoundError:
+            continue
+
+
 def daemon_is_active():
     """Vérifie si un des 3 services daemon est actif via systemctl."""
     for svc in SERVICES:
         try:
             result = subprocess.run(
                 ["systemctl", "--user", "is-active", svc],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             if result.stdout.strip() == "active":
                 return True
@@ -115,19 +153,22 @@ def daemon_start():
         try:
             result = subprocess.run(
                 ["systemctl", "--user", "is-enabled", svc],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             )
             if result.stdout.strip() == "enabled":
                 subprocess.Popen(
                     ["systemctl", "--user", "start", svc],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
                 )
                 return
         except FileNotFoundError:
             pass
     subprocess.Popen(
         ["systemctl", "--user", "start", "dictee"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
 
@@ -137,7 +178,8 @@ def daemon_stop():
         try:
             subprocess.run(
                 ["systemctl", "--user", "stop", svc],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
         except FileNotFoundError:
             pass
@@ -148,7 +190,7 @@ def read_state():
     try:
         with open(STATE_FILE, "r") as f:
             state = f.read().strip()
-            if state in ("recording", "transcribing"):
+            if state in ("recording", "transcribing", "llm", "translating"):
                 return state
             if state == "cancelled":
                 return "idle"
@@ -163,9 +205,11 @@ def _detect_backend():
     if any(name in desktop for name in ("GNOME", "UNITY", "CINNAMON")):
         try:
             import gi
-            gi.require_version('AyatanaAppIndicator3', '0.1')
-            gi.require_version('Gtk', '3.0')
+
+            gi.require_version("AyatanaAppIndicator3", "0.1")
+            gi.require_version("Gtk", "3.0")
             from gi.repository import AyatanaAppIndicator3  # noqa: F401
+
             return "appindicator"
         except (ImportError, ValueError):
             pass
@@ -176,12 +220,15 @@ def _detect_backend():
 #  Backend AppIndicator3 (GNOME / Unity / Cinnamon)
 # ═══════════════════════════════════════════════════════════════
 
+
 class DicteeTrayAppIndicator:
     def __init__(self):
         import gi
-        gi.require_version('AyatanaAppIndicator3', '0.1')
-        gi.require_version('Gtk', '3.0')
-        from gi.repository import AyatanaAppIndicator3, Gtk, GLib
+
+        gi.require_version("AyatanaAppIndicator3", "0.1")
+        gi.require_version("Gtk", "3.0")
+        from gi.repository import AyatanaAppIndicator3, GLib, Gtk
+
         self.Gtk = Gtk
         self.GLib = GLib
         self.AyatanaAppIndicator3 = AyatanaAppIndicator3
@@ -195,13 +242,17 @@ class DicteeTrayAppIndicator:
         icon_p = _icon_path(icon_name)
         if icon_p:
             self.indicator = AyatanaAppIndicator3.Indicator.new(
-                APP_ID, icon_p,
-                AyatanaAppIndicator3.IndicatorCategory.APPLICATION_STATUS)
+                APP_ID,
+                icon_p,
+                AyatanaAppIndicator3.IndicatorCategory.APPLICATION_STATUS,
+            )
             self.indicator.set_icon_theme_path(ICON_DIR or "")
         else:
             self.indicator = AyatanaAppIndicator3.Indicator.new(
-                APP_ID, "dialog-information",
-                AyatanaAppIndicator3.IndicatorCategory.APPLICATION_STATUS)
+                APP_ID,
+                "dialog-information",
+                AyatanaAppIndicator3.IndicatorCategory.APPLICATION_STATUS,
+            )
 
         self.indicator.set_status(AyatanaAppIndicator3.IndicatorStatus.ACTIVE)
 
@@ -229,11 +280,15 @@ class DicteeTrayAppIndicator:
         self.menu.append(self.item_dictee)
 
         self.item_translate = Gtk.MenuItem(label=_("Start translation"))
-        self.item_translate.connect("activate", lambda _: subprocess.Popen(["dictee", "--translate"]))
+        self.item_translate.connect(
+            "activate", lambda _: subprocess.Popen(["dictee", "--translate"])
+        )
         self.menu.append(self.item_translate)
 
         self.item_cancel = Gtk.MenuItem(label=_("Cancel"))
-        self.item_cancel.connect("activate", lambda _: subprocess.Popen(["dictee", "--cancel"]))
+        self.item_cancel.connect(
+            "activate", lambda _: subprocess.Popen(["dictee", "--cancel"])
+        )
         self.menu.append(self.item_cancel)
 
         self.menu.append(Gtk.SeparatorMenuItem())
@@ -245,7 +300,7 @@ class DicteeTrayAppIndicator:
         self.menu.append(Gtk.SeparatorMenuItem())
 
         item_setup = Gtk.MenuItem(label=_("Configure Dictée"))
-        item_setup.connect("activate", lambda _: subprocess.Popen(["dictee-setup"]))
+        item_setup.connect("activate", lambda _: launch_setup())
         self.menu.append(item_setup)
 
         self.menu.append(Gtk.SeparatorMenuItem())
@@ -268,6 +323,7 @@ class DicteeTrayAppIndicator:
         """Surveille le fichier état via inotify (GLib)."""
         try:
             from gi.repository import Gio
+
             if os.path.isfile(STATE_FILE):
                 f = Gio.File.new_for_path(STATE_FILE)
                 self._monitor = f.monitor_file(Gio.FileMonitorFlags.NONE, None)
@@ -284,7 +340,7 @@ class DicteeTrayAppIndicator:
 
     def _check_state(self):
         file_state = read_state()
-        if file_state in ("recording", "transcribing"):
+        if file_state in ("recording", "transcribing", "llm", "translating"):
             self.state = file_state
         elif self._daemon_active:
             self.state = "idle"
@@ -307,17 +363,25 @@ class DicteeTrayAppIndicator:
         if self.state == "offline":
             self.item_daemon.set_label(f"▶ {_('Start daemon')}")
         else:
-            labels = {"idle": _("Daemon active"), "recording": _("Recording…"),
-                      "transcribing": _("Transcribing…")}
-            self.item_daemon.set_label(f"■ {labels.get(self.state, _('Daemon active'))}")
+            labels = {
+                "idle": _("Daemon active"),
+                "recording": _("Recording…"),
+                "transcribing": _("Transcribing…"), "llm": _("Running LLM…"), "translating": _("Translating…"),
+            }
+            self.item_daemon.set_label(
+                f"■ {labels.get(self.state, _('Daemon active'))}"
+            )
 
         # Menu dictée / traduction
-        is_busy = self.state in ("recording", "transcribing")
+        is_busy = self.state in ("recording", "transcribing", "llm", "translating")
         is_translating = is_busy and os.path.isfile(TRANSLATE_FLAG)
         self.item_dictee.set_label(
-            _("Stop translation") if is_translating
-            else _("Stop dictation") if is_busy
-            else _("Start dictation"))
+            _("Stop translation")
+            if is_translating
+            else _("Stop dictation")
+            if is_busy
+            else _("Start dictation")
+        )
         self.item_dictee.set_sensitive(self.state != "offline")
         self.item_translate.set_sensitive(self.state != "offline")
         self.item_translate.set_visible(not is_busy)
@@ -347,11 +411,12 @@ class DicteeTrayAppIndicator:
 #  Backend Qt (KDE / Sway / Hyprland / autres)
 # ═══════════════════════════════════════════════════════════════
 
+
 class DicteeTrayQt:
     def __init__(self, app):
-        from PyQt6.QtCore import Qt, QTimer, QFileSystemWatcher
-        from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont
-        from PyQt6.QtWidgets import QSystemTrayIcon, QMenu
+        from PyQt6.QtCore import QFileSystemWatcher, Qt, QTimer
+        from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
+        from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
 
         self.Qt = Qt
         self.QTimer = QTimer
@@ -420,7 +485,8 @@ class DicteeTrayQt:
         self.menu.triggered.connect(self._on_menu_triggered)
 
     def _dot_icon(self, color):
-        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtGui import QColor, QPainter, QPixmap
+
         pix = QPixmap(16, 16)
         pix.fill(QColor(0, 0, 0, 0))
         p = QPainter(pix)
@@ -446,7 +512,7 @@ class DicteeTrayQt:
                 daemon_stop()
                 self.QTimer.singleShot(1000, self._delayed_refresh)
         elif action == self.action_setup:
-            subprocess.Popen(["dictee-setup"])
+            launch_setup()
         elif action == self.action_quit:
             self.app.quit()
 
@@ -458,7 +524,7 @@ class DicteeTrayQt:
             else:
                 subprocess.Popen(["dictee"])
         elif reason == self.QSystemTrayIcon.ActivationReason.MiddleClick:
-            if self.state in ("recording", "transcribing"):
+            if self.state in ("recording", "transcribing", "llm", "translating"):
                 subprocess.Popen(["dictee", "--cancel"])
 
     def _check_daemon(self):
@@ -466,7 +532,7 @@ class DicteeTrayQt:
 
     def _check_state(self):
         file_state = read_state()
-        if file_state in ("recording", "transcribing"):
+        if file_state in ("recording", "transcribing", "llm", "translating"):
             self.state = file_state
         elif self._daemon_active:
             self.state = "idle"
@@ -481,10 +547,16 @@ class DicteeTrayQt:
         self.tray.setIcon(icon)
 
         tooltips = {
-            "idle": _("Dictation — ready") + "\n" + _("Click = dictation, Ctrl+click = translation"),
+            "idle": _("Dictation — ready")
+            + "\n"
+            + _("Click = dictation, Ctrl+click = translation"),
             "offline": _("Dictation — offline"),
-            "recording": _("Dictation — recording") + "\n" + _("Click = stop, Middle = cancel"),
+            "recording": _("Dictation — recording")
+            + "\n"
+            + _("Click = stop, Middle = cancel"),
             "transcribing": _("Dictation — transcribing"),
+            "llm": _("Dictation — running LLM"),
+            "translating": _("Dictation — translating"),
         }
         self.tray.setToolTip(tooltips.get(self.state, _("Dictation")))
 
@@ -494,19 +566,26 @@ class DicteeTrayQt:
             self.action_daemon.setIcon(self._dot_icon("#e74c3c"))
             self.action_daemon_hint.setText(f" {_('click to start')}")
         else:
-            labels = {"idle": _("Daemon active"), "recording": _("Recording…"),
-                      "transcribing": _("Transcribing…")}
+            labels = {
+                "idle": _("Daemon active"),
+                "recording": _("Recording…"),
+                "transcribing": _("Transcribing…"), "llm": _("Running LLM…"), "translating": _("Translating…"),
+            }
             self.action_daemon.setText(
-                f"{labels.get(self.state, '  ' + _('Daemon active'))}{pad}■")
+                f"{labels.get(self.state, '  ' + _('Daemon active'))}{pad}■"
+            )
             self.action_daemon.setIcon(self._dot_icon("#2ecc71"))
             self.action_daemon_hint.setText(f" {_('click to stop')}")
 
-        is_busy = self.state in ("recording", "transcribing")
+        is_busy = self.state in ("recording", "transcribing", "llm", "translating")
         is_translating = is_busy and os.path.isfile(TRANSLATE_FLAG)
         self.action_dictee.setText(
-            _("Stop translation") if is_translating
-            else _("Stop dictation") if is_busy
-            else _("Start dictation"))
+            _("Stop translation")
+            if is_translating
+            else _("Stop dictation")
+            if is_busy
+            else _("Start dictation")
+        )
         self.action_dictee.setEnabled(self.state != "offline")
         self.action_translate.setText(_("Start translation"))
         self.action_translate.setEnabled(self.state != "offline")
@@ -523,7 +602,9 @@ class DicteeTrayQt:
 
     def _poll_slow(self):
         self._check_daemon()
-        if os.path.isfile(STATE_FILE) and STATE_FILE not in (self._watcher.files() or []):
+        if os.path.isfile(STATE_FILE) and STATE_FILE not in (
+            self._watcher.files() or []
+        ):
             self._watcher.addPath(STATE_FILE)
         self._check_state()
         self._apply_state()
@@ -536,6 +617,7 @@ class DicteeTrayQt:
 
 # ═══════════════════════════════════════════════════════════════
 
+
 def main():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
@@ -546,6 +628,7 @@ def main():
         tray.run()
     else:
         import time
+
         from PyQt6.QtWidgets import QApplication, QSystemTrayIcon
 
         app = QApplication(sys.argv)

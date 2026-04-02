@@ -1,0 +1,2 @@
+In the interface there is a post-processing space where the option of using an LLM to correct the grammar is only Olama. I want there to be the possibility of checking this box but when I check it the provider Olama appears as default but I can select others. The Lama model defaults to what it is today and the force CPU free GPU RAN options only for Lama. and the provider can be from Gemini, OpenAI, claude or GROQ. search on the internet, what models do they have available so that they can be the selection options within the model. 
+

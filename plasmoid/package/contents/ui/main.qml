@@ -267,6 +267,7 @@ PlasmoidItem {
         state: root.state
         barColor: root.barColor
         lastTranscription: root.lastTranscription
+        previewActive: Plasmoid.configuration.previewMode
         onActionRequested: function(action) {
             handleAction(action)
         }
@@ -313,7 +314,7 @@ PlasmoidItem {
             root.state = "idle"
             break
         case "setup":
-            executable.run("env QT_QPA_PLATFORMTHEME=kde dictee-setup")
+            executable.run("env QT_QPA_PLATFORMTHEME=kde /usr/bin/python3 /usr/bin/dictee-setup")
             break
         }
     }
