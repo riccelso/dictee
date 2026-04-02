@@ -1,22 +1,26 @@
 #!/bin/bash
 #
-# Dictée vocale - enregistre avec le micro, transcrit et tape le texte
-# Optionnellement traduit avant d'envoyer
+# Voice dictation - records with mic, transcribes, and types text
+# Optionally translates before typing
 #
-# Backends traduction: trans (défaut), ollama (translategemma)
-# Langues configurables via variables d'environnement :
-#   DICTEE_LANG_SOURCE (défaut: langue système), DICTEE_LANG_TARGET (défaut: en)
+# Translation backends: trans (default), ollama (translategemma)
+# Configurable languages via environment variables:
+#   DICTEE_LANG_SOURCE (default: system language), DICTEE_LANG_TARGET (default: en)
 #
-# Usage: dictee [--translate] [--ollama] [--cancel] [--setup [--wizard]]
-#   dictee                      # transcrit et tape
-#   dictee --translate          # transcrit, traduit (trans), tape
-#   dictee --translate --ollama # traduit avec ollama/translategemma
-#   dictee --cancel             # annule l'enregistrement en cours
-#   dictee --setup              # ouvre l'interface de configuration
-#   dictee --setup --wizard     # ouvre l'assistant de configuration
+# Usage: dictee [--translate] [--ollama] [--llm] [--cancel] [--setup [--wizard]]
+#              [--paste-clipboard|--paste-dotool]
+#   dictee                      # transcribe and type
+#   dictee --translate          # transcribe, translate (trans), type
+#   dictee --translate --ollama # translate with ollama/translategemma
+#   dictee --llm                # transcribe, improve with LLM, type
+#   dictee --cancel             # cancel current recording
+#   dictee --setup              # open configuration UI
+#   dictee --setup --wizard     # open setup wizard
+#   dictee --paste-clipboard    # force wl-copy+wl-paste+ydotool typing path
+#   dictee --paste-dotool       # force dotool typing path
 #
-# Nécessite : transcribe-daemon (en cours), pw-record, dotool
-# Optionnel : animation-speech-ctl (https://github.com/rcspam/animation-speech)
+# Requires: transcribe-daemon (running), pw-record, dotool
+# Optional: animation-speech-ctl (https://github.com/rcspam/animation-speech)
 
 # === CONFIGURATION ===
 
@@ -32,6 +36,7 @@ LANG_TARGET="${DICTEE_LANG_TARGET:-en}"
 LANG_LABEL="${LANG_SOURCE^^}→${LANG_TARGET^^}"
 CLIPBOARD="${DICTEE_CLIPBOARD:-true}"
 ANIMATION="${DICTEE_ANIMATION:-speech}"
+PASTE_MODE="${DICTEE_PASTE_MODE:-clipboard}"  # auto|clipboard|dotool
 
 # Détection du layout clavier pour dotool (localectl > setxkbmap > us)
 if [ -z "$DOTOOL_XKB_LAYOUT" ]; then
@@ -47,6 +52,7 @@ ID_TMP_FILE="/tmp/notify_dictee"
 MUT_FILE="/tmp/mut_dictee"
 TRANSLATE_BACKEND_FILE="/tmp/translate_dictee_backend"
 TRANSLATE_FLAG_FILE="/tmp/dictee_translate"
+LLM_FLAG_FILE="/tmp/dictee_llm_postprocess"
 LAST_WORD_FILE="/dev/shm/.dictee_last_word"
 
 # État partagé avec plasmoid/tray (protégé par flock)
@@ -93,6 +99,74 @@ type_text() {
             if (parts[i] != "") printf "type %s\n", parts[i]
         }
     }' | safe_dotool
+}
+
+can_clipboard_paste() {
+    [ "$XDG_SESSION_TYPE" = "wayland" ] || return 1
+    command -v wl-copy >/dev/null 2>&1 || return 1
+    command -v wl-paste >/dev/null 2>&1 || return 1
+    command -v wtype >/dev/null 2>&1 || command -v dotool >/dev/null 2>&1 || return 1
+    return 0
+}
+
+trigger_paste_shortcut() {
+    # Prefer Shift+Insert, then Ctrl+V. This avoids layout-dependent typing.
+    if command -v wtype >/dev/null 2>&1; then
+        wtype -M shift -P Insert -m shift >/dev/null 2>&1 && return 0
+        wtype -M ctrl -P v -m ctrl >/dev/null 2>&1 && return 0
+    fi
+    if command -v dotool >/dev/null 2>&1; then
+        printf 'key shift+insert\n' | dotool >/dev/null 2>&1 && return 0
+        printf 'key ctrl+v\n' | dotool >/dev/null 2>&1 && return 0
+        return 1
+    fi
+    return 1
+}
+
+resolve_paste_mode() {
+    case "$PASTE_MODE" in
+        clipboard|dotool)
+            echo "$PASTE_MODE"
+            ;;
+        auto|*)
+            if can_clipboard_paste; then
+                echo "clipboard"
+            else
+                echo "dotool"
+            fi
+            ;;
+    esac
+}
+
+paste_with_clipboard() {
+    local text="$1"
+    # Real clipboard paste path: copy once and trigger paste shortcut.
+    printf '%s' "$text" | wl-copy || return 1
+    trigger_paste_shortcut || {
+        echo "Dictee: could not trigger paste shortcut. Text was copied to clipboard." >&2
+        return 1
+    }
+    return 0
+}
+
+paste_text() {
+    local text="$1"
+    local mode
+    mode="$(resolve_paste_mode)"
+
+    if [ "$mode" = "clipboard" ]; then
+        if paste_with_clipboard "$text"; then
+            return 0
+        fi
+        # Forced clipboard mode: keep text in clipboard and do not fallback to char-by-char typing.
+        if [ "$PASTE_MODE" = "clipboard" ]; then
+            echo "Dictee: clipboard mode forced and paste shortcut failed. Text is in clipboard." >&2
+            return 0
+        fi
+    fi
+    # Fallback path (and explicit dotool mode)
+    copy_to_clipboard "$text"
+    type_text "$text"
 }
 
 # Continuation inter-appuis : détection de phrase incomplète
@@ -254,6 +328,7 @@ save_last_word() {
 # les arguments CLI les surchargent.
 TRANSLATE_BACKEND="${DICTEE_TRANSLATE_BACKEND:-trans}"
 TRANSLATE="${DICTEE_TRANSLATE:-false}"
+LLM_POSTPROCESS="${DICTEE_LLM_POSTPROCESS:-false}"
 CANCEL=false
 NO_ESC_LISTENER=false
 
@@ -270,6 +345,15 @@ for arg in "$@"; do
         ;;
     --ollama)
         TRANSLATE_BACKEND="ollama"
+        ;;
+    --llm)
+        LLM_POSTPROCESS=true
+        ;;
+    --paste-clipboard)
+        PASTE_MODE="clipboard"
+        ;;
+    --paste-dotool)
+        PASTE_MODE="dotool"
         ;;
     --setup)
         shift
@@ -370,8 +454,18 @@ copy_to_clipboard() {
 check_dependencies() {
     local missing=()
     command -v pw-record >/dev/null || missing+=("pipewire")
-    # wl-copy / xclip / xsel est optionnel (copie dans le presse-papier en bonus)
-    command -v dotool >/dev/null || missing+=("dotool")
+    case "$(resolve_paste_mode)" in
+        clipboard)
+            command -v wl-copy >/dev/null || missing+=("wl-clipboard")
+            command -v wl-paste >/dev/null || missing+=("wl-clipboard")
+            if ! command -v wtype >/dev/null 2>&1 && ! command -v dotool >/dev/null 2>&1; then
+                missing+=("wtype or dotool")
+            fi
+            ;;
+        *)
+            command -v dotool >/dev/null || missing+=("dotool")
+            ;;
+    esac
     if ! command -v pactl >/dev/null; then
         missing+=("pulseaudio-utils or pipewire-pulse")
     fi
@@ -389,7 +483,7 @@ check_dependencies() {
     fi
 
     if [ ${#missing[@]} -gt 0 ]; then
-        echo "Dépendances manquantes: ${missing[*]}" >&2
+        echo "Missing dependencies: ${missing[*]}" >&2
         exit 1
     fi
 }
@@ -430,10 +524,10 @@ cleanup_on_error() {
     # Fermer la notification persistante
     local id=$(cat "$ID_TMP_FILE" 2>/dev/null)
     if [ -n "$id" ]; then
-        notify-send --replace-id="$id" -t 3000 -i audio-chat-none-symbolic -a Dictee "Enregistrement interrompu"
+        notify-send --replace-id="$id" -t 3000 -i audio-chat-none-symbolic -a Dictee "Recording interrupted"
     fi
 
-    rm -f "$ID_TMP_FILE" "$RECORDING_FILE" "$TRANSLATE_BACKEND_FILE" "$TRANSLATE_FLAG_FILE" "$LAST_WORD_FILE"
+    rm -f "$ID_TMP_FILE" "$RECORDING_FILE" "$TRANSLATE_BACKEND_FILE" "$TRANSLATE_FLAG_FILE" "$LLM_FLAG_FILE" "$LAST_WORD_FILE"
 
     write_state "idle"
     exit $exit_code
@@ -459,7 +553,7 @@ translate() {
         # Vérifier que LibreTranslate est accessible et que les langues sont disponibles
         local avail_langs
         if ! avail_langs=$(curl -s --max-time 3 --connect-timeout 2 "${base_url}/languages" 2>/dev/null) || [ -z "$avail_langs" ]; then
-            echo "Erreur LibreTranslate: serveur inaccessible sur le port ${port}. Vérifier que le conteneur Docker est démarré et le réseau disponible." >&2
+            echo "LibreTranslate error: server unreachable on port ${port}. Check container and network." >&2
             return 1
         fi
         local missing=""
@@ -476,7 +570,7 @@ translate() {
         if [ -n "$missing" ]; then
             local supported
             supported=$(echo "$avail_langs" | python3 -c "import json,sys; print(', '.join(l['code'] for l in json.load(sys.stdin)))" 2>/dev/null)
-            echo "Erreur LibreTranslate: langue(s) non disponible(s): ${missing} (disponibles: ${supported}). Relancer le conteneur Docker avec --load-only incluant ces langues." >&2
+            echo "LibreTranslate error: unsupported language(s): ${missing} (available: ${supported}). Restart container with --load-only including those languages." >&2
             return 1
         fi
         # Échapper le texte pour JSON
@@ -489,7 +583,7 @@ translate() {
         if echo "$result" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["translatedText"])' 2>/dev/null; then
             :
         else
-            echo "Erreur LibreTranslate: $result" >&2
+            echo "LibreTranslate error: $result" >&2
             return 1
         fi
         ;;
@@ -497,7 +591,7 @@ translate() {
         local model="${DICTEE_OLLAMA_MODEL:-translategemma}"
         # Vérifier si le modèle est déjà téléchargé
         if ! ollama list 2>/dev/null | grep -q "${model%%:*}"; then
-            notify-send -t 0 -i emblem-downloads -a Dictee "Téléchargement du modèle ${model}..." "Premier lancement, veuillez patienter"
+            notify-send -t 0 -i emblem-downloads -a Dictee "Downloading model ${model}..." "First launch, please wait"
         fi
         local prompt="You are a professional ${LANG_SOURCE} to ${LANG_TARGET} translator. Your goal is to accurately convey the meaning and nuances of the original text while adhering to the target language grammar, vocabulary, and cultural sensitivities.
 Produce only the ${LANG_TARGET} translation, without any additional explanations or commentary. Please translate the following text:
@@ -508,7 +602,7 @@ ${text}"
         timeout 30 ollama run "$model" "$prompt" 2>/dev/null
         ;;
     *)
-        echo "Backend traduction inconnu: $backend" >&2
+        echo "Unknown translation backend: $backend" >&2
         return 1
         ;;
     esac
@@ -568,11 +662,11 @@ if [ "$CANCEL" = true ]; then
         fi
 
         if [ -n "$id" ]; then
-            notify-send --replace-id="$id" -t 3000 -i audio-chat-none-symbolic -a Dictee "Enregistrement annulé"
+            notify-send --replace-id="$id" -t 3000 -i audio-chat-none-symbolic -a Dictee "Recording cancelled"
         else
-            notify-send -t 3000 -i audio-chat-none-symbolic -a Dictee "Enregistrement annulé"
+            notify-send -t 3000 -i audio-chat-none-symbolic -a Dictee "Recording cancelled"
         fi
-        rm -f "$ID_TMP_FILE" "$RECORDING_FILE" "$TRANSLATE_BACKEND_FILE" "$TRANSLATE_FLAG_FILE"
+        rm -f "$ID_TMP_FILE" "$RECORDING_FILE" "$TRANSLATE_BACKEND_FILE" "$TRANSLATE_FLAG_FILE" "$LLM_FLAG_FILE"
     fi
     exit 0
 fi
@@ -591,6 +685,9 @@ if [ -f "$PIDFILE" ]; then
     fi
     if [ -f "$TRANSLATE_BACKEND_FILE" ]; then
         TRANSLATE_BACKEND=$(cat "$TRANSLATE_BACKEND_FILE")
+    fi
+    if [ -f "$LLM_FLAG_FILE" ]; then
+        LLM_POSTPROCESS=true
     fi
 
     id=$(cat "$ID_TMP_FILE" 2>/dev/null)
@@ -632,12 +729,12 @@ if [ -f "$PIDFILE" ]; then
     fi
 
     if [ -n "$id" ]; then
-        notify-send --replace-id="$id" -t 30000 -i audio-chat-none-symbolic -a Dictee "Enregistrement arrêté"
+        notify-send --replace-id="$id" -t 30000 -i audio-chat-none-symbolic -a Dictee "Recording stopped"
     fi
 
     raw=$(eval transcribe-client "$RECORDING_FILE")
     if [ -n "$SUPPRIME" ]; then
-        echo "$raw" | dictee-postprocess > /dev/shm/.dictee_pp
+        echo "$raw" | DICTEE_LLM_POSTPROCESS="$LLM_POSTPROCESS" dictee-postprocess > /dev/shm/.dictee_pp
         transcribed=$(cat /dev/shm/.dictee_pp; printf x)
         transcribed="${transcribed%x}"
         rm -f /dev/shm/.dictee_pp
@@ -655,13 +752,12 @@ if [ -f "$PIDFILE" ]; then
     if [ "$TRANSLATE" = true ]; then
         # Traduire et copier
         if [ -n "$id" ]; then
-            notify-send --replace-id="$id" -t 30000 -i audio-chat-none-symbolic -a Dictee "Traduction en cours..."
+            notify-send --replace-id="$id" -t 30000 -i audio-chat-none-symbolic -a Dictee "Translating..."
         fi
 
         translated=$(translate "$transcribed" "$TRANSLATE_BACKEND" 2>/dev/null) || translated=""
         if [ -n "$translated" ]; then
-            copy_to_clipboard "$translated"
-            type_text "$translated"
+            paste_text "$translated"
             save_last_word "$translated"
 
             if [ -n "$id" ]; then
@@ -671,30 +767,28 @@ if [ -f "$PIDFILE" ]; then
             fi
         else
             # Traduction échouée — taper le texte original
-            copy_to_clipboard "$transcribed"
-            type_text "$transcribed"
+            paste_text "$transcribed"
             save_last_word "$transcribed"
 
             if [ -n "$id" ]; then
-                notify-send --replace-id="$id" -t 5000 -i dialog-warning-symbolic -a Dictee "Traduction échouée ($TRANSLATE_BACKEND)" "<i>\"$transcribed\"</i>"
+                notify-send --replace-id="$id" -t 5000 -i dialog-warning-symbolic -a Dictee "Translation failed ($TRANSLATE_BACKEND)" "<i>\"$transcribed\"</i>"
             else
-                notify-send -t 5000 -i dialog-warning-symbolic -a Dictee "Traduction échouée ($TRANSLATE_BACKEND)" "<i>\"$transcribed\"</i>"
+                notify-send -t 5000 -i dialog-warning-symbolic -a Dictee "Translation failed ($TRANSLATE_BACKEND)" "<i>\"$transcribed\"</i>"
             fi
         fi
     else
         # Copier directement
-        copy_to_clipboard "$transcribed"
-        type_text "$transcribed"
+        paste_text "$transcribed"
         save_last_word "$transcribed"
 
         if [ -n "$id" ]; then
-            notify-send --replace-id="$id" -t 5000 -i clipboard-paste-symbolic -a Dictee "Texte tapé :" "<i>\"$transcribed\"</i>"
+            notify-send --replace-id="$id" -t 5000 -i clipboard-paste-symbolic -a Dictee "Typed text:" "<i>\"$transcribed\"</i>"
         else
-            notify-send -t 5000 -i clipboard-paste-symbolic -a Dictee "Texte tapé :" "<i>\"$transcribed\"</i>"
+            notify-send -t 5000 -i clipboard-paste-symbolic -a Dictee "Typed text:" "<i>\"$transcribed\"</i>"
         fi
     fi
 
-    rm -f "$ID_TMP_FILE" "$RECORDING_FILE" "$TRANSLATE_BACKEND_FILE" "$TRANSLATE_FLAG_FILE"
+    rm -f "$ID_TMP_FILE" "$RECORDING_FILE" "$TRANSLATE_BACKEND_FILE" "$TRANSLATE_FLAG_FILE" "$LLM_FLAG_FILE"
     write_state "idle"
 
     # Réactiver trap ERR
@@ -709,6 +803,9 @@ else
     if [ "$TRANSLATE" = true ]; then
         touch "$TRANSLATE_FLAG_FILE"
         echo "$TRANSLATE_BACKEND" >"$TRANSLATE_BACKEND_FILE"
+    fi
+    if [ "$LLM_POSTPROCESS" = true ]; then
+        touch "$LLM_FLAG_FILE"
     fi
 
     # Vérifier si le micro est muté et le démuter
@@ -740,8 +837,8 @@ else
 
     # Notification (sert aussi de délai pour pw-record)
     if [ "$TRANSLATE" = true ]; then
-        notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Enregistrement $LANG_LABEL ($TRANSLATE_BACKEND)" >"$ID_TMP_FILE"
+        notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Recording $LANG_LABEL ($TRANSLATE_BACKEND)" >"$ID_TMP_FILE"
     else
-        notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Enregistrement démarré" >"$ID_TMP_FILE"
+        notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Recording started" >"$ID_TMP_FILE"
     fi
 fi
