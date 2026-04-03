@@ -81,6 +81,26 @@ A `PKGBUILD` is available in the repository root. It builds from source and incl
 
 Pre-built packages are x86_64 only. On aarch64 (Raspberry Pi 5, Ampere, etc.), build from source — see below. CUDA is limited to NVIDIA Jetson on this architecture; most users will use CPU mode.
 
+### Windows alternatives (free)
+
+`dictee` and `dictee-tray` are currently Linux-only (systemd/Wayland/Linux userland integration).
+
+If you need a similar workflow on Windows, these free/open-source projects are the closest options:
+
+- **OpenWhispr** — cross-platform dictation app (Windows support), global hotkey workflow, local/cloud ASR, optional AI post-processing with local or remote LLM providers.
+- **Whispering + Whispering UI** — Windows-native UI focused on transcription/translation pipelines.
+
+Practical recommendation (as of 2026-04-03):
+
+- Best all-in-one replacement feel: **OpenWhispr**.
+- Best free local transcription+translation focus: **Whispering UI**.
+
+Links:
+
+- OpenWhispr: https://github.com/OpenWhispr/openwhispr
+- Whispering: https://github.com/Sharrnah/whispering
+- Whispering UI: https://github.com/Sharrnah/whispering-ui
+
 **Other distributions (.tar.gz):**
 
 ```bash
