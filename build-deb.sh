@@ -2,12 +2,31 @@
 set -e
 
 cd "$(dirname "$0")"
+SCRIPT_DIR="$(pwd)"
 
-VERSION="0.99.9"
-PKG_DIR="pkg/dictee"
+VERSION="1.1.0"
+PKG_TEMPLATE_DIR="$SCRIPT_DIR/pkg/dictee"
+STAGING_ROOT="$(mktemp -d /tmp/dictee-build-deb.XXXXXX)"
+PKG_DIR="$STAGING_ROOT/dictee"
+BUILD_OK=false
 
 DOTOOL_REPO="https://git.sr.ht/~geb/dotool"
 DOTOOL_DIR="/tmp/dotool-build"
+
+cleanup() {
+    rm -rf "$STAGING_ROOT"
+    if [ "$BUILD_OK" = true ] && [ -x "$SCRIPT_DIR/scripts/clean-volatile-artifacts.sh" ]; then
+        "$SCRIPT_DIR/scripts/clean-volatile-artifacts.sh" "$SCRIPT_DIR" || true
+    fi
+}
+trap cleanup EXIT
+
+if [ ! -d "$PKG_TEMPLATE_DIR" ]; then
+    echo "Template introuvable: $PKG_TEMPLATE_DIR"
+    exit 1
+fi
+mkdir -p "$PKG_DIR"
+cp -a "$PKG_TEMPLATE_DIR/." "$PKG_DIR/"
 
 echo "========================================"
 echo "  Building dictee $VERSION"
@@ -16,6 +35,37 @@ echo ""
 echo "Build dependencies:"
 echo "  sudo apt install golang-go scdoc libxkbcommon-dev"
 echo ""
+
+# Copier les scripts depuis les sources uniques (racine)
+cp ./dictee "$PKG_DIR/usr/bin/dictee"
+cp ./dictee-setup.py "$PKG_DIR/usr/bin/dictee-setup"
+cp ./dictee-tray.py "$PKG_DIR/usr/bin/dictee-tray"
+cp ./dictee-ptt.py "$PKG_DIR/usr/bin/dictee-ptt"
+cp ./dictee-postprocess.py "$PKG_DIR/usr/bin/dictee-postprocess"
+chmod 755 "$PKG_DIR/usr/bin/dictee" "$PKG_DIR/usr/bin/dictee-setup" "$PKG_DIR/usr/bin/dictee-tray" "$PKG_DIR/usr/bin/dictee-ptt" "$PKG_DIR/usr/bin/dictee-postprocess"
+
+# Copier les règles de post-traitement par défaut
+cp ./rules.conf.default "$PKG_DIR/usr/share/dictee/rules.conf.default"
+
+# Copier les assets (bannières SVG pour le wizard)
+echo "=== Copie des assets ==="
+mkdir -p "$PKG_DIR/usr/share/dictee/assets"
+cp ./assets/banner-dark.svg ./assets/banner-light.svg "$PKG_DIR/usr/share/dictee/assets/"
+if [ -d "./assets/logos" ]; then
+    mkdir -p "$PKG_DIR/usr/share/dictee/assets/logos"
+    cp ./assets/logos/*.svg "$PKG_DIR/usr/share/dictee/assets/logos/"
+fi
+
+# Compiler et copier les traductions
+echo "=== Compilation des traductions ==="
+for lang in fr de es it uk pt; do
+    msgfmt -o "po/$lang.mo" "po/$lang.po" 2>/dev/null || true
+    mkdir -p "$PKG_DIR/usr/share/locale/$lang/LC_MESSAGES"
+    cp "po/$lang.mo" "$PKG_DIR/usr/share/locale/$lang/LC_MESSAGES/dictee.mo"
+    # Copie interne (postinst les restaure si dpkg -r les a supprimées)
+    mkdir -p "$PKG_DIR/usr/share/dictee/locale/$lang/LC_MESSAGES"
+    cp "po/$lang.mo" "$PKG_DIR/usr/share/dictee/locale/$lang/LC_MESSAGES/dictee.mo"
+done
 
 # Build dotool (keyboard input tool)
 build_dotool() {
@@ -81,12 +131,12 @@ build_cuda() {
     # Update control file for CUDA
     cat > "$PKG_DIR/DEBIAN/control" << 'EOF'
 Package: dictee-cuda
-Version: 0.99.9
+Version: 1.1.0
 Section: sound
 Priority: optional
 Architecture: amd64
-Depends: pipewire | pulseaudio-utils | alsa-utils, curl, ffmpeg
-Recommends: nvidia-cuda-toolkit, wl-clipboard, libnotify-bin, python3-gi, gir1.2-ayatanaappindicator3-0.1, python3-numpy
+Depends: python3, pulseaudio-utils, pipewire | alsa-utils, libnotify-bin, python3-pyqt6, python3-pyqt6.qtmultimedia, python3-pyqt6.qtsvg
+Recommends: nvidia-cuda-toolkit, python3-evdev, wl-clipboard, xclip | xsel, curl, translate-shell, python3-numpy, docker.io, gir1.2-ayatanaappindicator3-0.1
 Conflicts: dictee-cpu
 Provides: dictee
 Maintainer: rcspam <rcspams@gmail.com>
@@ -139,12 +189,12 @@ build_cpu() {
     # Update control file for CPU
     cat > "$PKG_DIR/DEBIAN/control" << 'EOF'
 Package: dictee-cpu
-Version: 0.99.9
+Version: 1.1.0
 Section: sound
 Priority: optional
 Architecture: amd64
-Depends: pipewire | pulseaudio-utils | alsa-utils, curl, ffmpeg
-Recommends: wl-clipboard, libnotify-bin, python3-gi, gir1.2-ayatanaappindicator3-0.1, python3-numpy
+Depends: python3, pulseaudio-utils, pipewire | alsa-utils, libnotify-bin, python3-pyqt6, python3-pyqt6.qtmultimedia, python3-pyqt6.qtsvg
+Recommends: python3-evdev, wl-clipboard, xclip | xsel, curl, translate-shell, python3-numpy, docker.io, gir1.2-ayatanaappindicator3-0.1
 Conflicts: dictee-cuda
 Provides: dictee
 Maintainer: rcspam <rcspams@gmail.com>
@@ -192,7 +242,9 @@ build_tarball() {
     mkdir -p "$TARBALL_DIR/usr/share/man/man1"
     mkdir -p "$TARBALL_DIR/usr/share/man/fr/man1"
     mkdir -p "$TARBALL_DIR/usr/share/icons/hicolor/scalable/apps"
-    mkdir -p "$TARBALL_DIR/usr/share/locale/fr/LC_MESSAGES"
+    for _lang in fr de es it pt uk; do
+        mkdir -p "$TARBALL_DIR/usr/share/locale/$_lang/LC_MESSAGES"
+    done
     mkdir -p "$TARBALL_DIR/usr/share/applications"
     mkdir -p "$TARBALL_DIR/etc/udev/rules.d"
 
@@ -203,6 +255,7 @@ build_tarball() {
     cp "$PKG_DIR/usr/bin/dictee" "$TARBALL_DIR/usr/bin/"
     cp "$PKG_DIR/usr/bin/dictee-setup" "$TARBALL_DIR/usr/bin/"
     cp "$PKG_DIR/usr/bin/dictee-tray" "$TARBALL_DIR/usr/bin/"
+    cp "$PKG_DIR/usr/bin/dictee-ptt" "$TARBALL_DIR/usr/bin/"
     cp "$PKG_DIR/usr/bin/dictee-plasmoid-level" "$TARBALL_DIR/usr/bin/"
     cp "$PKG_DIR/usr/bin/dictee-plasmoid-level-daemon" "$TARBALL_DIR/usr/bin/"
     cp "$PKG_DIR/usr/bin/dictee-plasmoid-level-fft" "$TARBALL_DIR/usr/bin/"
@@ -223,19 +276,31 @@ build_tarball() {
     # Icônes
     cp "$PKG_DIR/usr/share/icons/hicolor/scalable/apps/"*.svg "$TARBALL_DIR/usr/share/icons/hicolor/scalable/apps/"
 
-    # Locale
-    cp -r "$PKG_DIR/usr/share/locale/fr/LC_MESSAGES/"*.mo "$TARBALL_DIR/usr/share/locale/fr/LC_MESSAGES/"
+    # Locales
+    for _lang in fr de es it pt uk; do
+        cp "$PKG_DIR/usr/share/locale/$_lang/LC_MESSAGES/"*.mo "$TARBALL_DIR/usr/share/locale/$_lang/LC_MESSAGES/" 2>/dev/null || true
+    done
 
     # Desktop entry
     cp "$PKG_DIR/usr/share/applications/"*.desktop "$TARBALL_DIR/usr/share/applications/"
 
-    # Plasmoid
-    mkdir -p "$TARBALL_DIR/usr/share/dictee"
+    # Plasmoid + assets
+    mkdir -p "$TARBALL_DIR/usr/share/dictee/assets"
     cp "$PKG_DIR/usr/share/dictee/dictee.plasmoid" "$TARBALL_DIR/usr/share/dictee/" 2>/dev/null || true
+    cp "$PKG_DIR/usr/share/dictee/assets/"*.svg "$TARBALL_DIR/usr/share/dictee/assets/"
+    if [ -d "$PKG_DIR/usr/share/dictee/assets/logos" ]; then
+        mkdir -p "$TARBALL_DIR/usr/share/dictee/assets/logos"
+        cp "$PKG_DIR/usr/share/dictee/assets/logos/"*.svg "$TARBALL_DIR/usr/share/dictee/assets/logos/"
+    fi
 
     # Scripts d'installation
     cp install.sh "$TARBALL_DIR/"
     cp uninstall.sh "$TARBALL_DIR/"
+    if [ -f "scripts/clean-volatile-artifacts.sh" ]; then
+        mkdir -p "$TARBALL_DIR/scripts"
+        cp "scripts/clean-volatile-artifacts.sh" "$TARBALL_DIR/scripts/"
+        chmod 755 "$TARBALL_DIR/scripts/clean-volatile-artifacts.sh"
+    fi
     chmod 755 "$TARBALL_DIR/install.sh" "$TARBALL_DIR/uninstall.sh"
 
     tar czf "dictee-${VERSION}_amd64.tar.gz" "$TARBALL_DIR"
@@ -247,6 +312,7 @@ build_tarball() {
 build_cuda
 build_cpu
 build_tarball
+BUILD_OK=true
 
 echo ""
 echo "========================================"

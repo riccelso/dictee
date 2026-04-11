@@ -1,0 +1,14 @@
+[Unit]
+Description=Dictee Push-to-Talk Daemon
+After=dictee.service graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/dictee-ptt
+Restart=on-failure
+RestartSec=3
+EnvironmentFile=-%h/.config/dictee.conf
+
+[Install]
+WantedBy=graphical-session.target

@@ -60,16 +60,26 @@ for bin in "${RUST_BINARIES[@]}"; do
     fi
 done
 
-# 2. Install Scripts and Python UI (from pkg/ directory)
+# 2. Install scripts and Python UI
 echo "→ Installing scripts and UI tools to $PREFIX/bin/"
-SCRIPTS=("dictee" "dictee-setup" "dictee-tray" "dotool" "dotoold")
+SCRIPTS=("dictee" "dictee-postprocess" "dictee-ptt" "dictee-setup" "dictee-tray" "dotool" "dotoold")
 
 for script in "${SCRIPTS[@]}"; do
-    if [ -f "$SCRIPT_DIR/pkg/dictee/usr/bin/$script" ]; then
-        install -Dm755 "$SCRIPT_DIR/pkg/dictee/usr/bin/$script" "$PREFIX/bin/$script"
+    src=""
+    case "$script" in
+        dictee) src="$SCRIPT_DIR/dictee" ;;
+        dictee-postprocess) src="$SCRIPT_DIR/dictee-postprocess.py" ;;
+        dictee-ptt) src="$SCRIPT_DIR/dictee-ptt.py" ;;
+        dictee-setup) src="$SCRIPT_DIR/dictee-setup.py" ;;
+        dictee-tray) src="$SCRIPT_DIR/dictee-tray.py" ;;
+        dotool|dotoold) src="$SCRIPT_DIR/pkg/dictee/usr/bin/$script" ;;
+    esac
+
+    if [ -n "$src" ] && [ -f "$src" ]; then
+        install -Dm755 "$src" "$PREFIX/bin/$script"
         echo "  [OK] $script installed"
     else
-        echo "  [ERROR] $script not found in pkg/dictee/usr/bin/"
+        echo "  [ERROR] source not found for $script ($src)"
         exit 1
     fi
 done
@@ -116,7 +126,11 @@ echo "  [OK] translations installed"
 echo "→ Installing .desktop application file"
 if [ -f "$SCRIPT_DIR/pkg/dictee/usr/share/applications/dictee-setup.desktop" ]; then
     install -Dm644 "$SCRIPT_DIR/pkg/dictee/usr/share/applications/dictee-setup.desktop" "$PREFIX/share/applications/dictee-setup.desktop"
-    echo "  [OK] .desktop file installed"
+    echo "  [OK] setup .desktop file installed"
+fi
+if [ -f "$SCRIPT_DIR/pkg/dictee/usr/share/applications/dictee-tray.desktop" ]; then
+    install -Dm644 "$SCRIPT_DIR/pkg/dictee/usr/share/applications/dictee-tray.desktop" "$PREFIX/share/applications/dictee-tray.desktop"
+    echo "  [OK] tray .desktop file installed"
 fi
 
 # 7. Icons (User space)
@@ -170,12 +184,48 @@ for file in "${TDT_FILES[@]}"; do
     fi
 done
 
+# Assets (bannières SVG pour le wizard)
+echo "→ Installing assets"
+install -d "$MODEL_DIR/assets"
+if [ -d "$SCRIPT_DIR/pkg/dictee/usr/share/dictee/assets" ]; then
+    for svg in "$SCRIPT_DIR/pkg/dictee/usr/share/dictee/assets/"*.svg; do
+        [ -f "$svg" ] && install -Dm644 "$svg" "$MODEL_DIR/assets/$(basename "$svg")"
+    done
+    if [ -d "$SCRIPT_DIR/pkg/dictee/usr/share/dictee/assets/logos" ]; then
+        install -d "$MODEL_DIR/assets/logos"
+        for svg in "$SCRIPT_DIR/pkg/dictee/usr/share/dictee/assets/logos/"*.svg; do
+            [ -f "$svg" ] && install -Dm644 "$svg" "$MODEL_DIR/assets/logos/$(basename "$svg")"
+        done
+    fi
+fi
+
+# Règles de post-traitement par défaut
+# Prefer the repository root file (source of truth during local development),
+# fallback to the packaged file when installing from assembled artifacts.
+if [ -f "$SCRIPT_DIR/rules.conf.default" ]; then
+    install -Dm644 "$SCRIPT_DIR/rules.conf.default" "$MODEL_DIR/rules.conf.default"
+elif [ -f "$SCRIPT_DIR/pkg/dictee/usr/share/dictee/rules.conf.default" ]; then
+    install -Dm644 "$SCRIPT_DIR/pkg/dictee/usr/share/dictee/rules.conf.default" "$MODEL_DIR/rules.conf.default"
+fi
+
+# Répertoire des modèles (accessible en écriture pour dictee-setup)
+echo "→ Creating model directories"
+for d in "$MODEL_DIR" "$MODEL_DIR/tdt" "$MODEL_DIR/sortformer" "$MODEL_DIR/nemotron"; do
+    mkdir -p "$d"
+    chmod 777 "$d"
+done
+
 # 11. Finalizing
 echo "→ Reloading systemd user daemon"
 REAL_UID=$(id -u "$REAL_USER")
 if [ -d "/run/user/$REAL_UID" ]; then
     sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$REAL_UID/bus" \
         systemctl --user daemon-reload 2>/dev/null || true
+fi
+
+# 12. Cleanup volatile artifacts (safe, optional)
+if [ -x "$SCRIPT_DIR/scripts/clean-volatile-artifacts.sh" ]; then
+    "$SCRIPT_DIR/scripts/clean-volatile-artifacts.sh" "$SCRIPT_DIR" || true
 fi
 
 echo ""
