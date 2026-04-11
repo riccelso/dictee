@@ -8,7 +8,7 @@ Lit le texte transcrit sur stdin, applique séquentiellement :
   4.  Typographie française (espaces insécables)
   5.  Dictionnaire (système + personnel, avec matching phonétique jellyfish)
   6.  Capitalisation
-  7.  Correction LLM optionnelle (ollama / OpenAI / Gemini / Claude / Groq)
+  7.  Correction LLM optionnelle (ollama / OpenAI / OpenRouter / Google Gemini / Claude / Groq)
 
 Écrit le résultat sur stdout.
 
@@ -20,19 +20,24 @@ Configuration via variables d'environnement :
   DICTEE_PP_CAPITALIZATION — true/false (défaut: true)  — capitalisation automatique
   DICTEE_PP_FUZZY_DICT     — true/false (défaut: true)  — matching phonétique dictionnaire
   DICTEE_LLM_POSTPROCESS   — true/false (défaut: false) — correction LLM
-  DICTEE_LLM_PROVIDER      — ollama/openai/gemini/anthropic/groq (défaut: ollama)
+  DICTEE_LLM_PROVIDER      — ollama/openai/openrouter/gemini/anthropic/groq (défaut: ollama)
   DICTEE_LLM_MODEL         — modèle LLM (défaut: gemma3:4b)
   DICTEE_LLM_TIMEOUT       — timeout en secondes (défaut: 10)
   DICTEE_LLM_CPU           — true/false (ollama uniquement)
+  DICTEE_LLM_ADDITIONAL_CONTEXT — contexte additionnel injecté dans le prompt LLM
+  DICTEE_LLM_DEBUG         — true/false (logs LLM détaillés sur stderr)
 
 Clés API distantes lues depuis l'environnement :
-  OPENAI_API_KEY / GEMINI_API_KEY / ANTHROPIC_API_KEY / GROQ_API_KEY
+  OPENAI_API_KEY / OPENROUTER_API_KEY / GOOGLE_API_KEY / GEMINI_API_KEY / ANTHROPIC_API_KEY / GROQ_API_KEY
 """
 
 import json
 import os
 import re
 import sys
+import time
+import logging
+import argparse
 import subprocess
 import urllib.error
 import urllib.request
@@ -74,6 +79,8 @@ SYSTEM_DICT_CANDIDATES = [
 ]
 
 LANG = os.environ.get("DICTEE_LANG_SOURCE", "").lower()[:2]
+LOGGER = logging.getLogger("dictee-postprocess")
+VERBOSE = False
 
 
 def _env_bool(var, default="true"):
@@ -87,6 +94,48 @@ def _env_int(var, default):
         return int(os.environ.get(var, str(default)))
     except (TypeError, ValueError):
         return default
+
+
+def _configure_logging(verbose=False):
+    """Configure le logger du script."""
+    level = logging.DEBUG if verbose else logging.WARNING
+    logging.basicConfig(
+        level=level,
+        format="[dictee-postprocess] %(message)s",
+        stream=sys.stderr,
+    )
+
+
+def _preview_text(text, max_len=120):
+    """Retourne un aperçu compact du texte pour logs."""
+    escaped = text.replace("\n", "\\n")
+    if len(escaped) <= max_len:
+        return escaped
+    return escaped[:max_len - 3] + "..."
+
+
+def _log_stage(name, before, after, elapsed_ms):
+    """Log standard d'une étape de pipeline."""
+    if not VERBOSE:
+        return
+    changed = before != after
+    LOGGER.debug(
+        "%s | %s | %.1f ms | len %d -> %d",
+        name,
+        "changed" if changed else "unchanged",
+        elapsed_ms,
+        len(before),
+        len(after),
+    )
+    if changed:
+        LOGGER.debug("  before: %r", _preview_text(before))
+        LOGGER.debug("  after : %r", _preview_text(after))
+
+
+def _llm_debug(msg):
+    """Log LLM debug indépendant du mode verbose pipeline."""
+    if _env_bool("DICTEE_LLM_DEBUG", "false"):
+        print(f"[dictee-postprocess] {msg}", file=sys.stderr)
 
 
 # ── Chargement des règles regex ──────────────────────────────────────
@@ -424,6 +473,7 @@ DEFAULT_PROMPT = (
     "- Si tu ne sais pas ou qu'il n'y a rien à modifier, "
     "renvoie la transcription telle quelle.\n"
     "</instructions>\n"
+    "{additional_context}"
     "<input>{text}</input>"
 )
 
@@ -453,12 +503,23 @@ def ollama_postprocess(text, prompt, model, timeout):
         env["OLLAMA_NUM_GPU"] = "0"
     try:
         result = subprocess.run(
-            ["ollama", "run", model, prompt],
+            ["ollama", "run", "--hidethinking", model, prompt],
             capture_output=True, text=True, timeout=timeout, env=env,
+        )
+        _llm_debug(
+            "ollama rc={} stdout_len={} stderr_len={}".format(
+                result.returncode,
+                len((result.stdout or "").strip()),
+                len((result.stderr or "").strip()),
+            )
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+    except subprocess.TimeoutExpired:
+        _llm_debug(f"ollama timeout after {timeout}s")
+        return None
+    except (FileNotFoundError, OSError) as exc:
+        _llm_debug(f"ollama exec error: {exc}")
         return None
     return None
 
@@ -493,8 +554,36 @@ def openai_postprocess(text, prompt, model, timeout):
     return None
 
 
+def openrouter_postprocess(text, prompt, model, timeout):
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        return None
+    data = _http_json(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+        {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://dictee.local",
+            "X-Title": "dictee",
+        },
+        timeout,
+    )
+    if not data:
+        return None
+    for choice in data.get("choices", []):
+        message = choice.get("message", {})
+        text_value = message.get("content")
+        if isinstance(text_value, str) and text_value.strip():
+            return text_value.strip()
+    return None
+
+
 def gemini_postprocess(text, prompt, model, timeout):
-    api_key = os.environ.get("GEMINI_API_KEY")
+    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return None
     data = _http_json(
@@ -572,13 +661,32 @@ def llm_postprocess(text):
     provider = os.environ.get("DICTEE_LLM_PROVIDER", "ollama").strip().lower() or "ollama"
     model = os.environ.get("DICTEE_LLM_MODEL", "gemma3:4b")
     timeout = _env_int("DICTEE_LLM_TIMEOUT", 10)
+    additional_context = os.environ.get("DICTEE_LLM_ADDITIONAL_CONTEXT", "").strip()
+    additional_context_block = ""
+    if additional_context:
+        additional_context_block = (
+            "<additional_context>\n"
+            f"{additional_context}\n"
+            "</additional_context>\n"
+        )
+    if VERBOSE:
+        LOGGER.debug(
+            "llm provider=%s model=%s timeout=%ss",
+            provider, model, timeout
+        )
+    _llm_debug(f"llm provider={provider} model={model} timeout={timeout}s")
     prompt_tpl = _load_prompt()
-    prompt = prompt_tpl.format(text=text)
+    prompt = prompt_tpl.format(
+        text=text,
+        additional_context=additional_context_block,
+    )
 
     handlers = {
         "ollama": ollama_postprocess,
         "openai": openai_postprocess,
+        "openrouter": openrouter_postprocess,
         "gemini": gemini_postprocess,
+        "google": gemini_postprocess,
         "anthropic": anthropic_postprocess,
         "groq": groq_postprocess,
     }
@@ -586,20 +694,48 @@ def llm_postprocess(text):
     try:
         corrected = handler(text, prompt, model, timeout)
         if corrected:
+            if VERBOSE:
+                LOGGER.debug("llm output accepted")
+            _llm_debug("llm output accepted")
             return corrected
-    except Exception:
-        pass
+        if VERBOSE:
+            LOGGER.debug("llm returned empty output; keeping original text")
+        _llm_debug("llm returned empty output; keeping original text")
+    except Exception as exc:
+        if VERBOSE:
+            LOGGER.debug("llm failed (%s); keeping original text", exc)
+        _llm_debug(f"llm failed ({exc}); keeping original text")
     return text  # fallback : texte inchangé
 
 
 # ── Main ─────────────────────────────────────────────────────────────
 
 def main():
+    global VERBOSE
+    parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="affiche les étapes internes de post-traitement (stderr)",
+    )
+    args = parser.parse_args()
+    VERBOSE = (
+        args.verbose
+        or _env_bool("DICTEE_PP_VERBOSE", "false")
+        or _env_bool("DICTEE_VERBOSE", "false")
+    )
+    _configure_logging(VERBOSE)
+
     text = sys.stdin.read()
+    if VERBOSE:
+        LOGGER.debug("start lang=%s", LANG or "auto")
+        LOGGER.debug("input raw len=%d preview=%r", len(text), _preview_text(text))
     # Supprimer le \n ajouté par echo (mais garder les \n intentionnels)
     if text.endswith('\n'):
         text = text[:-1]
     if not text.strip():
+        if VERBOSE:
+            LOGGER.debug("input empty/whitespace, nothing to process")
         sys.stdout.write(text)
         return
 
@@ -610,12 +746,20 @@ def main():
 
     # 1-5. Règles regex (annotations, hésitations, commandes vocales,
     #       dédup, ponctuation, élisions basiques, nettoyage)
+    start = time.perf_counter()
+    before = text
     rules = load_rules()
+    if VERBOSE:
+        LOGGER.debug("rules loaded=%d", len(rules))
     if rules:
         text = apply_rules(text, rules)
+    _log_stage("rules", before, text, (time.perf_counter() - start) * 1000.0)
     # Nettoyer les espaces en début (hésitations/annotations supprimées)
     # mais préserver les \n de fin (commandes vocales "à la ligne")
+    start = time.perf_counter()
+    before = text
     text = text.lstrip(' \t').rstrip(' \t')
+    _log_stage("trim", before, text, (time.perf_counter() - start) * 1000.0)
 
     # 5b. Rejet mauvaise langue (après les règles, qui ont pu convertir les commandes connues)
     if LANG:
@@ -626,42 +770,68 @@ def main():
             cyrillic = sum(1 for c in letters if '\u0400' <= c <= '\u04ff')
             ratio = cyrillic / len(letters)
             if LANG in _LATIN_LANGS and ratio > 0.5:
+                if VERBOSE:
+                    LOGGER.debug("language reject: latin expected, cyrillic ratio=%.3f", ratio)
                 sys.stdout.write("")
                 return
             if LANG in _CYRILLIC_LANGS and ratio < 0.2:
+                if VERBOSE:
+                    LOGGER.debug("language reject: cyrillic expected, cyrillic ratio=%.3f", ratio)
                 sys.stdout.write("")
                 return
 
     # 6. Élisions françaises avancées (avec h aspirés)
     if LANG == "fr" and _env_bool("DICTEE_PP_ELISIONS"):
+        start = time.perf_counter()
+        before = text
         text = fix_elisions(text)
+        _log_stage("elisions", before, text, (time.perf_counter() - start) * 1000.0)
 
     # 7. Conversion nombres → chiffres
     if _env_bool("DICTEE_PP_NUMBERS"):
+        start = time.perf_counter()
+        before = text
         text = convert_numbers(text)
+        _log_stage("numbers", before, text, (time.perf_counter() - start) * 1000.0)
 
     # 8. Typographie française (espaces insécables)
     if LANG == "fr" and _env_bool("DICTEE_PP_TYPOGRAPHY"):
+        start = time.perf_counter()
+        before = text
         text = fix_french_typography(text)
+        _log_stage("typography", before, text, (time.perf_counter() - start) * 1000.0)
 
     # 9. (nettoyage final déjà dans les règles regex étape 5)
 
     # 10. Dictionnaire (système + personnel, avec matching phonétique)
+    start = time.perf_counter()
+    before = text
     dictionary = load_dictionary()
+    if VERBOSE:
+        LOGGER.debug("dictionary entries=%d fuzzy=%s", len(dictionary), _env_bool("DICTEE_PP_FUZZY_DICT"))
     if dictionary:
         text = apply_dictionary(
             text, dictionary,
             fuzzy=_env_bool("DICTEE_PP_FUZZY_DICT"),
         )
+    _log_stage("dictionary", before, text, (time.perf_counter() - start) * 1000.0)
 
     # 11. Capitalisation
     if _env_bool("DICTEE_PP_CAPITALIZATION"):
+        start = time.perf_counter()
+        before = text
         text = fix_capitalization(text)
+        _log_stage("capitalization", before, text, (time.perf_counter() - start) * 1000.0)
 
     # 12. Correction LLM (optionnelle)
     if _env_bool("DICTEE_LLM_POSTPROCESS", "false"):
+        start = time.perf_counter()
+        before = text
         text = llm_postprocess(text)
+        _log_stage("llm", before, text, (time.perf_counter() - start) * 1000.0)
 
+    if VERBOSE:
+        LOGGER.debug("done output len=%d preview=%r", len(text), _preview_text(text))
     sys.stdout.write(text)
 
 

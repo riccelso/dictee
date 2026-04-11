@@ -2,10 +2,29 @@
 set -e
 
 cd "$(dirname "$0")"
+SCRIPT_DIR="$(pwd)"
 
 VERSION="1.1.0"
-PKG_DIR="pkg/dictee"
+PKG_TEMPLATE_DIR="$SCRIPT_DIR/pkg/dictee"
+STAGING_ROOT="$(mktemp -d /tmp/dictee-build-rpm.XXXXXX)"
+PKG_DIR="$STAGING_ROOT/dictee"
+BUILD_OK=false
 RPMBUILD_DIR="$HOME/rpmbuild"
+
+cleanup() {
+    rm -rf "$STAGING_ROOT"
+    if [ "$BUILD_OK" = true ] && [ -x "$SCRIPT_DIR/scripts/clean-volatile-artifacts.sh" ]; then
+        "$SCRIPT_DIR/scripts/clean-volatile-artifacts.sh" "$SCRIPT_DIR" || true
+    fi
+}
+trap cleanup EXIT
+
+if [ ! -d "$PKG_TEMPLATE_DIR" ]; then
+    echo "Template introuvable: $PKG_TEMPLATE_DIR"
+    exit 1
+fi
+mkdir -p "$PKG_DIR"
+cp -a "$PKG_TEMPLATE_DIR/." "$PKG_DIR/"
 
 echo "========================================"
 echo "  Building dictee RPM $VERSION"
@@ -389,6 +408,7 @@ build_rpm_cuda
 build_rpm_cpu
 build_rpm_plasmoid
 build_source_tarball
+BUILD_OK=true
 
 echo ""
 echo "========================================"

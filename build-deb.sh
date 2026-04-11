@@ -2,12 +2,31 @@
 set -e
 
 cd "$(dirname "$0")"
+SCRIPT_DIR="$(pwd)"
 
 VERSION="1.1.0"
-PKG_DIR="pkg/dictee"
+PKG_TEMPLATE_DIR="$SCRIPT_DIR/pkg/dictee"
+STAGING_ROOT="$(mktemp -d /tmp/dictee-build-deb.XXXXXX)"
+PKG_DIR="$STAGING_ROOT/dictee"
+BUILD_OK=false
 
 DOTOOL_REPO="https://git.sr.ht/~geb/dotool"
 DOTOOL_DIR="/tmp/dotool-build"
+
+cleanup() {
+    rm -rf "$STAGING_ROOT"
+    if [ "$BUILD_OK" = true ] && [ -x "$SCRIPT_DIR/scripts/clean-volatile-artifacts.sh" ]; then
+        "$SCRIPT_DIR/scripts/clean-volatile-artifacts.sh" "$SCRIPT_DIR" || true
+    fi
+}
+trap cleanup EXIT
+
+if [ ! -d "$PKG_TEMPLATE_DIR" ]; then
+    echo "Template introuvable: $PKG_TEMPLATE_DIR"
+    exit 1
+fi
+mkdir -p "$PKG_DIR"
+cp -a "$PKG_TEMPLATE_DIR/." "$PKG_DIR/"
 
 echo "========================================"
 echo "  Building dictee $VERSION"
@@ -277,6 +296,11 @@ build_tarball() {
     # Scripts d'installation
     cp install.sh "$TARBALL_DIR/"
     cp uninstall.sh "$TARBALL_DIR/"
+    if [ -f "scripts/clean-volatile-artifacts.sh" ]; then
+        mkdir -p "$TARBALL_DIR/scripts"
+        cp "scripts/clean-volatile-artifacts.sh" "$TARBALL_DIR/scripts/"
+        chmod 755 "$TARBALL_DIR/scripts/clean-volatile-artifacts.sh"
+    fi
     chmod 755 "$TARBALL_DIR/install.sh" "$TARBALL_DIR/uninstall.sh"
 
     tar czf "dictee-${VERSION}_amd64.tar.gz" "$TARBALL_DIR"
@@ -288,6 +312,7 @@ build_tarball() {
 build_cuda
 build_cpu
 build_tarball
+BUILD_OK=true
 
 echo ""
 echo "========================================"

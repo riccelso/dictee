@@ -60,16 +60,26 @@ for bin in "${RUST_BINARIES[@]}"; do
     fi
 done
 
-# 2. Install Scripts and Python UI (from pkg/ directory)
+# 2. Install scripts and Python UI
 echo "→ Installing scripts and UI tools to $PREFIX/bin/"
 SCRIPTS=("dictee" "dictee-postprocess" "dictee-ptt" "dictee-setup" "dictee-tray" "dotool" "dotoold")
 
 for script in "${SCRIPTS[@]}"; do
-    if [ -f "$SCRIPT_DIR/pkg/dictee/usr/bin/$script" ]; then
-        install -Dm755 "$SCRIPT_DIR/pkg/dictee/usr/bin/$script" "$PREFIX/bin/$script"
+    src=""
+    case "$script" in
+        dictee) src="$SCRIPT_DIR/dictee" ;;
+        dictee-postprocess) src="$SCRIPT_DIR/dictee-postprocess.py" ;;
+        dictee-ptt) src="$SCRIPT_DIR/dictee-ptt.py" ;;
+        dictee-setup) src="$SCRIPT_DIR/dictee-setup.py" ;;
+        dictee-tray) src="$SCRIPT_DIR/dictee-tray.py" ;;
+        dotool|dotoold) src="$SCRIPT_DIR/pkg/dictee/usr/bin/$script" ;;
+    esac
+
+    if [ -n "$src" ] && [ -f "$src" ]; then
+        install -Dm755 "$src" "$PREFIX/bin/$script"
         echo "  [OK] $script installed"
     else
-        echo "  [ERROR] $script not found in pkg/dictee/usr/bin/"
+        echo "  [ERROR] source not found for $script ($src)"
         exit 1
     fi
 done
@@ -211,6 +221,11 @@ REAL_UID=$(id -u "$REAL_USER")
 if [ -d "/run/user/$REAL_UID" ]; then
     sudo -u "$REAL_USER" XDG_RUNTIME_DIR="/run/user/$REAL_UID" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$REAL_UID/bus" \
         systemctl --user daemon-reload 2>/dev/null || true
+fi
+
+# 12. Cleanup volatile artifacts (safe, optional)
+if [ -x "$SCRIPT_DIR/scripts/clean-volatile-artifacts.sh" ]; then
+    "$SCRIPT_DIR/scripts/clean-volatile-artifacts.sh" "$SCRIPT_DIR" || true
 fi
 
 echo ""

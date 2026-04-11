@@ -69,6 +69,34 @@ for _d in _ICON_SEARCH_DIRS:
         break
 
 
+def _resolve_bin(name):
+    """Resolve executable preferring the same prefix as dictee-tray."""
+    base_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    candidates = [
+        os.path.join(base_dir, name),
+        os.path.join(script_dir, name),
+        f"/usr/local/bin/{name}",
+        f"/usr/bin/{name}",
+        name,
+    ]
+    seen = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if os.path.isabs(candidate):
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+        else:
+            return candidate
+    return name
+
+
+DICTEE_BIN = _resolve_bin("dictee")
+DICTEE_SETUP_BIN = _resolve_bin("dictee-setup")
+
+
 def _is_dark_theme():
     """Détecte si le thème du panel est sombre (KDE/GNOME)."""
     try:
@@ -119,8 +147,8 @@ def _icon_path(name):
 def launch_setup():
     """Launch setup using the same binary preference as the KDE plasmoid."""
     candidates = [
-        ["/usr/bin/python3", "/usr/bin/dictee-setup"],
-        ["/usr/bin/dictee-setup"],
+        [DICTEE_SETUP_BIN],
+        ["/usr/bin/python3", DICTEE_SETUP_BIN],
         ["dictee-setup"],
     ]
     for cmd in candidates:
@@ -129,6 +157,10 @@ def launch_setup():
             return
         except FileNotFoundError:
             continue
+
+
+def run_dictee(*args):
+    subprocess.Popen([DICTEE_BIN, *args])
 
 
 def daemon_is_active():
@@ -276,19 +308,15 @@ class DicteeTrayAppIndicator:
         Gtk = self.Gtk
 
         self.item_dictee = Gtk.MenuItem(label=_("Start dictation"))
-        self.item_dictee.connect("activate", lambda _: subprocess.Popen(["dictee"]))
+        self.item_dictee.connect("activate", lambda _: run_dictee())
         self.menu.append(self.item_dictee)
 
         self.item_translate = Gtk.MenuItem(label=_("Start translation"))
-        self.item_translate.connect(
-            "activate", lambda _: subprocess.Popen(["dictee", "--translate"])
-        )
+        self.item_translate.connect("activate", lambda _: run_dictee("--translate"))
         self.menu.append(self.item_translate)
 
         self.item_cancel = Gtk.MenuItem(label=_("Cancel"))
-        self.item_cancel.connect(
-            "activate", lambda _: subprocess.Popen(["dictee", "--cancel"])
-        )
+        self.item_cancel.connect("activate", lambda _: run_dictee("--cancel"))
         self.menu.append(self.item_cancel)
 
         self.menu.append(Gtk.SeparatorMenuItem())
@@ -499,11 +527,11 @@ class DicteeTrayQt:
 
     def _on_menu_triggered(self, action):
         if action == self.action_dictee:
-            subprocess.Popen(["dictee"])
+            run_dictee()
         elif action == self.action_translate:
-            subprocess.Popen(["dictee", "--translate"])
+            run_dictee("--translate")
         elif action == self.action_cancel:
-            subprocess.Popen(["dictee", "--cancel"])
+            run_dictee("--cancel")
         elif action == self.action_daemon:
             if self.state == "offline":
                 daemon_start()
@@ -520,12 +548,12 @@ class DicteeTrayQt:
         if reason == self.QSystemTrayIcon.ActivationReason.Trigger:
             modifiers = self.QApplication.keyboardModifiers()
             if modifiers & self.Qt.KeyboardModifier.ControlModifier:
-                subprocess.Popen(["dictee", "--translate"])
+                run_dictee("--translate")
             else:
-                subprocess.Popen(["dictee"])
+                run_dictee()
         elif reason == self.QSystemTrayIcon.ActivationReason.MiddleClick:
             if self.state in ("recording", "transcribing", "llm", "translating"):
-                subprocess.Popen(["dictee", "--cancel"])
+                run_dictee("--cancel")
 
     def _check_daemon(self):
         self._daemon_active = daemon_is_active()

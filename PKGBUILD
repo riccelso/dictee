@@ -31,6 +31,9 @@ makedepends=('rust' 'cargo' 'go' 'scdoc' 'libxkbcommon' 'git')
 source=("$pkgname-$pkgver.tar.gz::https://github.com/rcspam/dictee/archive/v$pkgver.tar.gz")
 sha256sums=('SKIP')
 
+# Packaging template tree (non-root scripts/assets/services).
+_pkg_template="pkg/dictee"
+
 build() {
     cd "$pkgname-$pkgver"
 
@@ -69,11 +72,12 @@ package() {
     install -Dm755 dictee-setup.py "$pkgdir/usr/bin/dictee-setup"
     install -Dm755 dictee-tray.py "$pkgdir/usr/bin/dictee-tray"
     install -Dm755 dictee-ptt.py "$pkgdir/usr/bin/dictee-ptt"
-    install -Dm755 pkg/dictee/usr/bin/dictee-plasmoid-level "$pkgdir/usr/bin/dictee-plasmoid-level"
-    install -Dm755 pkg/dictee/usr/bin/dictee-plasmoid-level-daemon "$pkgdir/usr/bin/dictee-plasmoid-level-daemon"
-    install -Dm755 pkg/dictee/usr/bin/dictee-plasmoid-level-fft "$pkgdir/usr/bin/dictee-plasmoid-level-fft"
-    install -Dm755 pkg/dictee/usr/bin/transcribe-daemon-vosk "$pkgdir/usr/bin/transcribe-daemon-vosk"
-    install -Dm755 pkg/dictee/usr/bin/transcribe-daemon-whisper "$pkgdir/usr/bin/transcribe-daemon-whisper"
+    install -Dm755 dictee-postprocess.py "$pkgdir/usr/bin/dictee-postprocess"
+    install -Dm755 "$_pkg_template/usr/bin/dictee-plasmoid-level" "$pkgdir/usr/bin/dictee-plasmoid-level"
+    install -Dm755 "$_pkg_template/usr/bin/dictee-plasmoid-level-daemon" "$pkgdir/usr/bin/dictee-plasmoid-level-daemon"
+    install -Dm755 "$_pkg_template/usr/bin/dictee-plasmoid-level-fft" "$pkgdir/usr/bin/dictee-plasmoid-level-fft"
+    install -Dm755 "$_pkg_template/usr/bin/transcribe-daemon-vosk" "$pkgdir/usr/bin/transcribe-daemon-vosk"
+    install -Dm755 "$_pkg_template/usr/bin/transcribe-daemon-whisper" "$pkgdir/usr/bin/transcribe-daemon-whisper"
 
     # dotool
     install -Dm755 /tmp/dotool-build/dotool "$pkgdir/usr/bin/dotool"
@@ -81,36 +85,36 @@ package() {
     install -Dm644 /tmp/dotool-build/80-dotool.rules "$pkgdir/etc/udev/rules.d/80-dotool.rules"
 
     # Systemd services
-    install -Dm644 pkg/dictee/usr/lib/systemd/user/dictee.service "$pkgdir/usr/lib/systemd/user/dictee.service"
-    install -Dm644 pkg/dictee/usr/lib/systemd/user/dictee-tray.service "$pkgdir/usr/lib/systemd/user/dictee-tray.service"
-    install -Dm644 pkg/dictee/usr/lib/systemd/user/dictee-ptt.service "$pkgdir/usr/lib/systemd/user/dictee-ptt.service"
-    install -Dm644 pkg/dictee/usr/lib/systemd/user/dictee-vosk.service "$pkgdir/usr/lib/systemd/user/dictee-vosk.service"
-    install -Dm644 pkg/dictee/usr/lib/systemd/user/dictee-whisper.service "$pkgdir/usr/lib/systemd/user/dictee-whisper.service"
-    install -Dm644 pkg/dictee/usr/lib/systemd/user-preset/90-dictee.preset "$pkgdir/usr/lib/systemd/user-preset/90-dictee.preset"
+    install -Dm644 "$_pkg_template/usr/lib/systemd/user/dictee.service" "$pkgdir/usr/lib/systemd/user/dictee.service"
+    install -Dm644 "$_pkg_template/usr/lib/systemd/user/dictee-tray.service" "$pkgdir/usr/lib/systemd/user/dictee-tray.service"
+    install -Dm644 "$_pkg_template/usr/lib/systemd/user/dictee-ptt.service" "$pkgdir/usr/lib/systemd/user/dictee-ptt.service"
+    install -Dm644 "$_pkg_template/usr/lib/systemd/user/dictee-vosk.service" "$pkgdir/usr/lib/systemd/user/dictee-vosk.service"
+    install -Dm644 "$_pkg_template/usr/lib/systemd/user/dictee-whisper.service" "$pkgdir/usr/lib/systemd/user/dictee-whisper.service"
+    install -Dm644 "$_pkg_template/usr/lib/systemd/user-preset/90-dictee.preset" "$pkgdir/usr/lib/systemd/user-preset/90-dictee.preset"
 
     # Man pages
-    for f in pkg/dictee/usr/share/man/man1/*.1; do
+    for f in "$_pkg_template"/usr/share/man/man1/*.1; do
         install -Dm644 "$f" "$pkgdir/usr/share/man/man1/$(basename "$f")"
     done
-    for f in pkg/dictee/usr/share/man/fr/man1/*.1; do
+    for f in "$_pkg_template"/usr/share/man/fr/man1/*.1; do
         install -Dm644 "$f" "$pkgdir/usr/share/man/fr/man1/$(basename "$f")"
     done
 
     # Icons
-    for f in pkg/dictee/usr/share/icons/hicolor/scalable/apps/*.svg; do
+    for f in "$_pkg_template"/usr/share/icons/hicolor/scalable/apps/*.svg; do
         install -Dm644 "$f" "$pkgdir/usr/share/icons/hicolor/scalable/apps/$(basename "$f")"
     done
 
     # Locales
     for lang in fr de es it pt uk; do
-        for f in pkg/dictee/usr/share/locale/$lang/LC_MESSAGES/*.mo; do
+        for f in "$_pkg_template"/usr/share/locale/$lang/LC_MESSAGES/*.mo; do
             [ -f "$f" ] && install -Dm644 "$f" "$pkgdir/usr/share/locale/$lang/LC_MESSAGES/$(basename "$f")"
         done
     done
 
     # Desktop entry
-    install -Dm644 pkg/dictee/usr/share/applications/dictee-setup.desktop "$pkgdir/usr/share/applications/dictee-setup.desktop"
-    install -Dm644 pkg/dictee/usr/share/applications/dictee-tray.desktop "$pkgdir/usr/share/applications/dictee-tray.desktop"
+    install -Dm644 "$_pkg_template/usr/share/applications/dictee-setup.desktop" "$pkgdir/usr/share/applications/dictee-setup.desktop"
+    install -Dm644 "$_pkg_template/usr/share/applications/dictee-tray.desktop" "$pkgdir/usr/share/applications/dictee-tray.desktop"
 
     # Plasmoid
     if [ -f "dictee.plasmoid" ]; then

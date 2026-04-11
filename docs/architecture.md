@@ -17,14 +17,18 @@
 
 ```text
 Microphone/file
-    -> dictee (bash) or transcribe-client
+    -> dictee (bash) / dictee-ptt / transcribe-client
     -> transcribe-client (normalizes to 16 kHz mono WAV)
     -> Unix socket: $XDG_RUNTIME_DIR/transcribe.sock
     -> active ASR daemon (Parakeet | Vosk | Whisper)
     -> raw text
     -> optional dictee-postprocess
     -> optional translation (trans/libretranslate/ollama)
-    -> dotool (focused app input) + clipboard + notifications
+    -> text injection (clipboard paste shortcut by default; dotool fallback/mode) + notifications
+
+Configuration/control plane
+    -> dictee-setup (writes ~/.config/dictee.conf, manages services)
+    -> dictee-tray (service/status and quick actions)
 ```
 
 ## Layers and components
@@ -65,22 +69,86 @@ Shared contract:
 - [dictee](dictee) coordinates the UX flow:
   - recording (`pw-record`),
   - `transcribe-client` call,
-  - optional postprocessing (`dictee-postprocess`),
+  - optional postprocessing (`dictee-postprocess.py`),
   - optional translation,
-  - text injection (`dotool`),
+  - text injection (`paste_text` strategy),
   - clipboard and notifications.
+
+Input injection strategy (`dictee`):
+
+- Default mode: `DICTEE_PASTE_MODE=clipboard`
+  - copies text with `wl-copy`
+  - triggers app paste shortcut (`Shift+Insert`, fallback `Ctrl+V`) using `wtype` (preferred) or `dotool`
+  - avoids character-by-character typing issues (keyboard layout/special chars such as `ç`)
+- Optional mode: `DICTEE_PASTE_MODE=dotool` (or `--paste-dotool`)
+  - uses `dotool` type/key path directly
+- Auto mode: `DICTEE_PASTE_MODE=auto`
+  - prefers clipboard strategy when available on Wayland, otherwise falls back to dotool typing.
 
 Runtime state:
 
 - `/dev/shm/.dictee_state` tracks `idle`, `recording`, `transcribing`, `cancelled`.
 - per-user socket at `$XDG_RUNTIME_DIR/transcribe.sock` (fallback to `/tmp`).
+- runtime flags/files under `/tmp` are used to persist one-session options (translate backend, LLM flag, notification id, recording pid).
 
-### 4) Interfaces and utilities
+### 4) Post-processing and LLM correction
+
+- [dictee-postprocess.py](dictee-postprocess.py) is a stdin->stdout pipeline.
+- Main stages:
+  - regex rules (`rules.conf.default` + user `~/.config/dictee/rules.conf`),
+  - French elisions/typography (when source language is `fr`),
+  - numbers conversion,
+  - dictionary replacements (`dictionary.conf.default` + user dictionary),
+  - capitalization,
+  - optional LLM correction.
+- LLM providers supported:
+  - `ollama` (default local path),
+  - `openai`,
+  - `openrouter`,
+  - `gemini`/`google`,
+  - `anthropic`,
+  - `groq`.
+- The script supports verbose diagnostics:
+  - CLI flag `-v/--verbose`,
+  - env flags `DICTEE_PP_VERBOSE=true` or `DICTEE_VERBOSE=true`,
+  - dedicated LLM debug logs with `DICTEE_LLM_DEBUG=true`.
+- If a dedicated postprocess venv exists at `~/.local/share/dictee/postprocess-env`,
+  its `site-packages` are injected at runtime (no re-exec) to preserve stdin piping.
+
+### 5) Interfaces and utilities
 
 - [dictee-tray.py](dictee-tray.py): tray icon, quick actions, daemon status.
-- [dictee-setup.py](dictee-setup.py): backend, shortcuts, and service configuration.
-- [dictee-ptt.py](dictee-ptt.py): push-to-talk/toggle helper.
+- [dictee-setup.py](dictee-setup.py):
+  - writes `~/.config/dictee.conf`,
+  - configures ASR backend, translation backend, postprocess/LLM options, and PTT hotkeys,
+  - can run in wizard mode (`--wizard`),
+  - enables/disables systemd user services (`dictee`, `dictee-tray`, `dictee-ptt`, and backend services).
+- [dictee-ptt.py](dictee-ptt.py):
+  - push-to-talk daemon (`hold` or `toggle`),
+  - uses `evdev` + `uinput` when available (preferred),
+  - falls back to raw `/dev/input` reading when needed.
 - `plasmoid/`: KDE Plasma widget.
+
+### 6) Packaging architecture (root vs `pkg/`)
+
+Repository model:
+
+- Root scripts are the development source of truth:
+  - `dictee`, `dictee-setup.py`, `dictee-tray.py`, `dictee-ptt.py`, `dictee-postprocess.py`.
+- `pkg/dictee/...` is a package template/staging tree used by installers and package builds.
+
+Build/install behavior:
+
+- `build_and_install.sh` syncs root scripts into `pkg/dictee/usr/bin/` before installation.
+- `build-deb.sh` and `build-rpm.sh` copy `pkg/dictee` to a temporary staging directory (`mktemp` under `/tmp`) and build from that staging copy.
+- `install.sh` installs to `/usr/local` and uses root scripts as primary source for core runtime scripts.
+- `PKGBUILD` follows the same split: root scripts + `pkg/dictee` template assets/services.
+
+Cleanup policy:
+
+- `scripts/clean-volatile-artifacts.sh` removes only volatile build artifacts
+  (`__pycache__`, `*.pyc`, `*.pyo`, root `dictee.plasmoid`).
+- `pkg/dictee` is intentionally not deleted during cleanup.
 
 ## Model artifacts
 
@@ -98,8 +166,14 @@ Default install path: `/usr/share/dictee/`:
 2. `dictee` records audio.
 3. `dictee` calls `transcribe-client`, which sends WAV to the daemon over Unix socket.
 4. Daemon returns text.
-5. `dictee` applies optional postprocessing/translation.
-6. Text is typed into the active app via `dotool`.
+5. `dictee` applies optional postprocessing/translation (and optional LLM correction through postprocess).
+6. Text is injected into the active app through `paste_text` (clipboard paste by default, dotool mode/fallback when selected or required).
+
+### Flow A2: push-to-talk daemon mode
+
+1. `dictee-ptt` captures configured hotkeys (hold/toggle).
+2. It invokes `dictee` start/stop/cancel commands depending on key events and mode.
+3. Resulting text follows the same `dictee` pipeline as Flow A.
 
 ### Flow B: offline file CLI
 
@@ -115,6 +189,7 @@ Default install path: `/usr/share/dictee/`:
 
 ## Limits and boundaries
 
-- `dictee` desktop dictation depends on Linux userland tools (`pw-record`, `dotool`, `notify-send`, etc.).
+- `dictee` desktop dictation depends on Linux userland tools (`pw-record`, `notify-send`, and one of `wtype`/`dotool` for paste/input events).
 - Diarization is currently CLI-focused, not integrated into the default typing workflow.
 - ASR backends share protocol semantics but differ in implementation and model requirements.
+- Packaging keeps a deliberate duplication (root source + `pkg` template), so editing only inside `pkg/dictee/usr/bin` can be overwritten by normal build/install workflows.
