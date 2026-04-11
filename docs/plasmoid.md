@@ -1,44 +1,44 @@
-# Widget KDE Plasma 6
+# KDE Plasma 6 Widget
 
-[Retour au README principal](../README.md)
+[Back to main README](../README.md)
 
 ---
 
-Widget natif KDE Plasma 6 avec visualisation audio en temps réel, état du daemon, et contrôles rapides.
+Native KDE Plasma 6 widget with real-time audio visualization, daemon status, and quick controls.
 
 ## Installation
 
 ```bash
-# Inclus dans le .deb, ou manuellement :
+# Included in the .deb, or manually:
 kpackagetool6 -t Plasma/Applet -i /usr/share/dictee/dictee.plasmoid
 
-# Mettre à jour
+# Update
 kpackagetool6 -t Plasma/Applet -u /usr/share/dictee/dictee.plasmoid
 ```
 
-Clic droit sur le panneau → « Ajouter des composants graphiques… » → chercher « Dictée ».
+Right-click on the panel → "Add Widgets…" → search for "Dictée".
 
-## Styles d'animation
+## Animation Styles
 
-Cinq styles disponibles, tous avec enveloppe Hanning, sensibilité par style, et couleurs arc-en-ciel optionnelles :
+Five styles available, all with Hanning envelope, per-style sensitivity, and optional rainbow colors:
 
-| Barres | Onde | Pulsation | Points | Forme d'onde |
+| Bars | Wave | Pulse | Dots | Waveform |
 |:------:|:----:|:---------:|:------:|:------------:|
 | ![Barres](../plasmoid/assets/anim-bars.svg?v=2) | ![Onde](../plasmoid/assets/anim-wave.svg) | ![Pulsation](../plasmoid/assets/anim-pulse.svg) | ![Points](../plasmoid/assets/anim-dots.svg) | ![Forme d'onde](../plasmoid/assets/anim-waveform.svg) |
 
-Mode arc-en-ciel : ![Rainbow](../plasmoid/assets/anim-rainbow.svg?v=2)
+Rainbow mode: ![Rainbow](../plasmoid/assets/anim-rainbow.svg?v=2)
 
-## Réglages
+## Settings
 
-- **Volume micro** — réglage du niveau d'entrée directement depuis la config du widget
-- **Seuil de silence** — met à zéro l'audio sous un seuil pour un silence net
-- **Auto-calibration** — capture le bruit ambiant au démarrage pour une normalisation optimale
-- **Sensibilité** — courbe de puissance par style d'animation (`pow(raw, 1/sens)`)
-- **Forme d'enveloppe** — puissance Hanning ajustable (plate → pointue)
-- **Centre d'enveloppe** — déplace le pic sur la plage de fréquences (80–4000 Hz)
-- **Contrôles par style** — nombre de barres, espacement, rayon, vitesse, etc.
+- **Microphone volume** — adjust the input level directly from the widget config
+- **Silence threshold** — zeroes out audio below a threshold for clean silence
+- **Auto-calibration** — captures ambient noise at startup for optimal normalization
+- **Sensitivity** — power curve per animation style (`pow(raw, 1/sens)`)
+- **Envelope shape** — adjustable Hanning power (flat → sharp)
+- **Envelope center** — shifts the peak across the frequency range (80–4000 Hz)
+- **Per-style controls** — number of bars, spacing, radius, speed, etc.
 
-## Dépendances
+## Dependencies
 
-- `python3-numpy` — calcul FFT pour la visualisation
-- `pulseaudio-utils` — `parec` pour la capture audio en temps réel
+- `python3-numpy` — FFT computation for visualization
+- `pulseaudio-utils` — `parec` for real-time audio capture

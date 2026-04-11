@@ -1,227 +1,227 @@
-# Analyse de Murmure — Features pour post-v1.0.0
+# Analysis of Murmure — Features for post-v1.0.0
 
-> Référence : [github.com/Kieirra/murmure](https://github.com/Kieirra/murmure) v1.7.0 (février 2026)
-> Objectif : évaluer les features de Murmure pour une intégration future dans dictee.
+> Reference: [github.com/Kieirra/murmure](https://github.com/Kieirra/murmure) v1.7.0 (February 2026)
+> Objective: evaluate Murmure's features for future integration into dictee.
 
-## Présentation
+## Overview
 
-Murmure est une application de dictée vocale locale et privée, basée sur le même modèle Parakeet TDT 0.6B v3.
-Stack : Tauri + React + TypeScript (frontend), Rust (backend). Cross-platform (Windows, macOS, Linux).
-Licence AGPL v3, 299 commits.
+Murmure is a local, private voice dictation application, based on the same Parakeet TDT 0.6B v3 model.
+Stack: Tauri + React + TypeScript (frontend), Rust (backend). Cross-platform (Windows, macOS, Linux).
+License AGPL v3, 299 commits.
 
-## Positionnement comparé
+## Comparative Positioning
 
 | Aspect | dictee | Murmure |
 |--------|--------|---------|
-| **Plateformes** | Linux uniquement | Windows, macOS, Linux |
+| **Platforms** | Linux only | Windows, macOS, Linux |
 | **Stack** | Shell + Rust + PyQt6 + QML | Tauri + React + Rust |
-| **Backends ASR** | 3 (Parakeet, Vosk, faster-whisper) | 1 (Parakeet) |
-| **Diarisation** | Oui (Sortformer, 4 locuteurs) | Non |
-| **Mode daemon** | Oui (transcriptions quasi-instantanées) | Non |
-| **Widget DE natif** | KDE Plasma 6 (5 animations) | Non |
-| **Intégration système** | systemd, dotool, PipeWire, D-Bus | Tauri auto-start |
-| **Traduction** | 4 backends (Google, Bing, LibreTranslate, ollama) | Via LLM uniquement |
-| **Règles post-traitement** | 2 règles FR hardcodées | Moteur complet (regex, smart, exact) |
-| **Dictionnaire** | Non | Correction phonétique Beider-Morse |
-| **LLM post-processing** | Non (traduction seulement) | Ollama + API OpenAI, multi-prompts |
-| **Voice activation** | Non (push-to-talk) | VAD + wake word + fuzzy matching |
-| **Licence** | GPL-3.0 | AGPL-3.0 |
+| **ASR Backends** | 3 (Parakeet, Vosk, faster-whisper) | 1 (Parakeet) |
+| **Diarization** | Yes (Sortformer, 4 speakers) | No |
+| **Daemon mode** | Yes (near-instant transcriptions) | No |
+| **Native DE widget** | KDE Plasma 6 (5 animations) | No |
+| **System integration** | systemd, dotool, PipeWire, D-Bus | Tauri auto-start |
+| **Translation** | 4 backends (Google, Bing, LibreTranslate, ollama) | Via LLM only |
+| **Post-processing rules** | 2 hardcoded FR rules | Full engine (regex, smart, exact) |
+| **Dictionary** | No | Beider-Morse phonetic correction |
+| **LLM post-processing** | No (translation only) | Ollama + OpenAI API, multi-prompts |
+| **Voice activation** | No (push-to-talk) | VAD + wake word + fuzzy matching |
+| **License** | GPL-3.0 | AGPL-3.0 |
 
-## Features à considérer
+## Features to Consider
 
-### 1. Moteur de règles configurable
+### 1. Configurable Rules Engine
 
-**Priorité : haute** — Effort moyen, forte valeur ajoutée.
+**Priority: high** — Medium effort, high value-add.
 
-#### Ce que fait Murmure
+#### What Murmure Does
 
-Pipeline en 5 étapes dans `src-tauri/src/formatting_rules/formatter.rs` :
+5-step pipeline in `src-tauri/src/formatting_rules/formatter.rs`:
 
-1. **Correction texte court** : si ≤N mots → minuscules + supprime ponctuation finale (préserve acronymes et mots mixtes type "iPhone")
-2. **Règles custom** avec 3 modes de matching :
-   - **Smart** (défaut) : insensible à la casse, gère espaces/ponctuation autour du match
-   - **Exact** : remplacement littéral
-   - **Regex** : pattern complet avec groupes de capture (`$1`, `$2`)
-3. **Espacement ponctuation** : espace avant `?` et `!`
-4. **Conversion nombres** : texte→chiffres via `text2num` (7 langues : FR, EN, DE, IT, ES, NL, PT)
-5. **Espace final** en fin de transcription
+1. **Short text correction**: if ≤N words → lowercase + remove trailing punctuation (preserves acronyms and mixed-case words like "iPhone")
+2. **Custom rules** with 3 matching modes:
+   - **Smart** (default): case-insensitive, handles spaces/punctuation around the match
+   - **Exact**: literal replacement
+   - **Regex**: full pattern with capture groups (`$1`, `$2`)
+3. **Punctuation spacing**: space before `?` and `!`
+4. **Number conversion**: text→digits via `text2num` (7 languages: FR, EN, DE, IT, ES, NL, PT)
+5. **Trailing space** at the end of transcription
 
-UX : interface drag-and-drop, règles ordonnables/activables, import/export JSON.
+UX: drag-and-drop interface, rules are reorderable/toggleable, JSON import/export.
 
-#### État actuel dans dictee
+#### Current State in dictee
 
-Deux règles hardcodées dans le script shell `dictee` :
-- "point à la ligne" → saut de ligne
+Two hardcoded rules in the shell script `dictee`:
+- "point à la ligne" → line break
 - "trois petits points" → `...`
 
-#### Pistes d'implémentation pour dictee
+#### Implementation Options for dictee
 
-- **Option A — Script shell** : fichier de règles `~/.config/dictee-rules.conf` (format `pattern|replacement|mode`), appliqué par `sed`/`awk` après transcription. Simple mais limité.
-- **Option B — Python** : module Python dans `dictee-setup.py` ou standalone, avec UI PyQt6 pour éditer les règles. Plus riche, cohérent avec l'existant.
-- **Option C — Rust** : intégrer dans `transcribe-client` ou `transcribe-daemon`. Plus performant mais plus lourd à maintenir.
+- **Option A — Shell script**: rules file `~/.config/dictee-rules.conf` (format `pattern|replacement|mode`), applied via `sed`/`awk` after transcription. Simple but limited.
+- **Option B — Python**: Python module in `dictee-setup.py` or standalone, with PyQt6 UI for editing rules. More feature-rich, consistent with the existing stack.
+- **Option C — Rust**: integrate into `transcribe-client` or `transcribe-daemon`. More performant but heavier to maintain.
 
-Recommandation : **Option B** — le post-traitement est déjà en shell, un fichier de config + un parser Python serait le plus pragmatique.
-
----
-
-### 2. Dictionnaire personnel (correction phonétique)
-
-**Priorité : moyenne** — Effort élevé, valeur ciblée (noms propres, jargon).
-
-#### Ce que fait Murmure
-
-Code dans `src-tauri/src/dictionary/dictionary.rs`. Correction **post-ASR** par correspondance phonétique **Beider-Morse** :
-
-1. Encode phonétiquement chaque mot du dictionnaire (algorithme Beider-Morse, ~130 fichiers de règles pour ~20 langues)
-2. Encode chaque mot de la transcription
-3. Si les codes phonétiques matchent → substitution
-
-Structure : `Arc<Mutex<HashMap<String, Vec<String>>>>` (thread-safe).
-
-Appliqué **avant** le LLM et **avant** les formatting rules.
-
-UX : champ texte simple, tags supprimables, import/export CSV.
-
-#### État actuel dans dictee
-
-Rien d'équivalent.
-
-#### Pistes d'implémentation pour dictee
-
-- **Option simple** : dictionnaire de remplacement exact (`mot_mal_transcrit → correction`) dans un fichier config. Pas de phonétique mais couvre 80% du besoin.
-- **Option avancée** : intégrer une lib phonétique (ex: `rphonetic` en Rust, ou `phonetics` en Python). Beider-Morse est complexe (~130 fichiers de règles).
-
-Recommandation : commencer par l'**option simple** (remplacement exact), itérer vers le phonétique si la demande est forte.
+Recommendation: **Option B** — post-processing is already in shell, a config file + Python parser would be the most pragmatic approach.
 
 ---
 
-### 3. LLM post-processing généraliste
+### 2. Personal Dictionary (Phonetic Correction)
 
-**Priorité : moyenne-haute** — Effort moyen (infra ollama déjà en place), forte valeur.
+**Priority: medium** — High effort, targeted value (proper nouns, jargon).
 
-#### Ce que fait Murmure
+#### What Murmure Does
 
-Code dans `src-tauri/src/llm/llm.rs`. Deux providers :
-- **Local** : Ollama (`POST {url}/generate`, timeout 120s)
-- **Remote** : API OpenAI-compatible (`POST {url}/chat/completions` avec Bearer token, timeout 60s)
+Code in `src-tauri/src/dictionary/dictionary.rs`. **Post-ASR** correction via **Beider-Morse** phonetic matching:
 
-5 presets de prompts :
-1. **Général** : correction orthographe/grammaire
-2. **Médical** : terminologie médicale et acronymes
-3. **TypeScript** : conversion voix→code
-4. **Developer (Cursor)** : correction technique pour IDE
-5. **Traduction** : traduction automatique
+1. Phonetically encodes each word in the dictionary (Beider-Morse algorithm, ~130 rule files for ~20 languages)
+2. Encodes each word in the transcription
+3. If phonetic codes match → substitution
 
-Variables injectables : `{{TRANSCRIPT}}`, `{{DICTIONARY}}`. Température 0.0.
+Structure: `Arc<Mutex<HashMap<String, Vec<String>>>>` (thread-safe).
 
-Pipeline : transcription → dictionnaire → **LLM** → formatting rules.
+Applied **before** the LLM and **before** formatting rules.
 
-3 modes de déclenchement : Standard (pas de LLM), LLM (post-traitement), Command (avec contexte sélectionné).
+UX: simple text field, removable tags, CSV import/export.
 
-#### État actuel dans dictee
+#### Current State in dictee
 
-- Traduction via ollama/translategemma déjà implémentée (`dictee --translate --ollama`)
-- L'infrastructure ollama est en place
-- Pas de correction grammaticale ni de prompts custom
+No equivalent.
 
-#### Pistes d'implémentation pour dictee
+#### Implementation Options for dictee
 
-dictee a déjà le chemin ollama. Il suffirait de :
-1. Ajouter une option `--llm` (ou `--postprocess`) au script `dictee`
-2. Fichier de prompts `~/.config/dictee-prompts/` (un fichier par preset)
-3. Section dans `dictee --setup` pour choisir le modèle et éditer les prompts
-4. Variable `DICTEE_LLM_PROMPT` dans `dictee.conf`
+- **Simple option**: exact replacement dictionary (`misrecognized_word → correction`) in a config file. No phonetics but covers 80% of the need.
+- **Advanced option**: integrate a phonetic library (e.g., `rphonetic` in Rust, or `phonetics` in Python). Beider-Morse is complex (~130 rule files).
 
-Le mode "Command" (contexte sélectionné) est intéressant pour les développeurs mais plus complexe (il faut capturer le texte sélectionné via `wl-copy`/`xsel`).
+Recommendation: start with the **simple option** (exact replacement), iterate toward phonetic if demand is strong.
 
-#### Modèle recommandé : `ministral-3:3b`
+---
 
-Après évaluation, le meilleur compromis pour la correction grammaticale dans dictee est **ministral-3:3b** (Mistral AI) :
+### 3. General-Purpose LLM Post-Processing
 
-| Critère | ministral-3:3b | qwen2.5:1.5b |
-|---------|----------------|---------------|
-| **Taille disque** | 1.9 Go | 986 Mo |
-| **RAM** | ~3 Go | ~2 Go |
-| **Thinking** | Non | Non |
-| **Français** | Excellent (Mistral = société FR) | Bon |
-| **Langues** | 40+ | 29 |
-| **Licence** | Apache 2.0 | Apache 2.0 |
+**Priority: medium-high** — Medium effort (ollama infra already in place), high value.
 
-Alternatives considérées :
-- **Qwen2.5:1.5b** : plus léger (986 Mo) et plus rapide, mais moins bon en français
-- **Qwen3:1.7b** : bon mais nécessite `/no_think` pour désactiver le raisonnement
-- **gemma3:1b** : le plus léger (815 Mo), qualité FR correcte sans plus
+#### What Murmure Does
 
-Prompt inspiré de Murmure (`DEFAULT_GENERAL_PROMPT` dans `helpers.rs`) :
+Code in `src-tauri/src/llm/llm.rs`. Two providers:
+- **Local**: Ollama (`POST {url}/generate`, timeout 120s)
+- **Remote**: OpenAI-compatible API (`POST {url}/chat/completions` with Bearer token, timeout 60s)
+
+5 prompt presets:
+1. **General**: spelling/grammar correction
+2. **Medical**: medical terminology and acronyms
+3. **TypeScript**: voice→code conversion
+4. **Developer (Cursor)**: technical correction for IDE
+5. **Translation**: automatic translation
+
+Injectable variables: `{{TRANSCRIPT}}`, `{{DICTIONARY}}`. Temperature 0.0.
+
+Pipeline: transcription → dictionary → **LLM** → formatting rules.
+
+3 trigger modes: Standard (no LLM), LLM (post-processing), Command (with selected context).
+
+#### Current State in dictee
+
+- Translation via ollama/translategemma already implemented (`dictee --translate --ollama`)
+- The ollama infrastructure is in place
+- No grammar correction or custom prompts
+
+#### Implementation Options for dictee
+
+dictee already has the ollama path. It would suffice to:
+1. Add a `--llm` (or `--postprocess`) option to the `dictee` script
+2. Prompts directory `~/.config/dictee-prompts/` (one file per preset)
+3. Section in `dictee --setup` to choose the model and edit prompts
+4. `DICTEE_LLM_PROMPT` variable in `dictee.conf`
+
+The "Command" mode (selected context) is interesting for developers but more complex (requires capturing selected text via `wl-copy`/`xsel`).
+
+#### Recommended Model: `ministral-3:3b`
+
+After evaluation, the best trade-off for grammar correction in dictee is **ministral-3:3b** (Mistral AI):
+
+| Criterion | ministral-3:3b | qwen2.5:1.5b |
+|-----------|----------------|---------------|
+| **Disk size** | 1.9 GB | 986 MB |
+| **RAM** | ~3 GB | ~2 GB |
+| **Thinking** | No | No |
+| **French** | Excellent (Mistral = French company) | Good |
+| **Languages** | 40+ | 29 |
+| **License** | Apache 2.0 | Apache 2.0 |
+
+Alternatives considered:
+- **Qwen2.5:1.5b**: lighter (986 MB) and faster, but less good at French
+- **Qwen3:1.7b**: good but requires `/no_think` to disable reasoning
+- **gemma3:1b**: the lightest (815 MB), decent FR quality but nothing more
+
+Prompt inspired by Murmure (`DEFAULT_GENERAL_PROMPT` in `helpers.rs`):
 
 ```
-Corrige uniquement le texte suivant selon ces règles strictes :
-- Corriger l'orthographe et la grammaire.
-- Supprimer les répétitions et hésitations.
-- Ne jamais modifier le sens ni le contenu.
-- Ne pas répondre aux questions et ne pas les commenter.
-- Ne générer aucun commentaire ni introduction.
-- Si rien à modifier, retourner le texte tel quel.
+Correct only the following text according to these strict rules:
+- Fix spelling and grammar.
+- Remove repetitions and hesitations.
+- Never change the meaning or content.
+- Do not answer questions or comment on them.
+- Do not generate any comments or introduction.
+- If nothing needs to be modified, return the text as-is.
 ```
 
-Installation :
+Installation:
 ```bash
-ollama pull ministral-3:3b   # recommandé (meilleur français)
-ollama pull qwen2.5:1.5b     # alternative légère (986 Mo, plus rapide)
+ollama pull ministral-3:3b   # recommended (better French)
+ollama pull qwen2.5:1.5b     # lightweight alternative (986 MB, faster)
 ```
 
 ---
 
 ### 4. Voice Activation (Wake Word)
 
-**Priorité : basse** — Effort élevé, besoin niche.
+**Priority: low** — High effort, niche need.
 
-#### Ce que fait Murmure
+#### What Murmure Does
 
-Code dans `src-tauri/src/wake_word/wake_word.rs`. Architecture en 3 phases :
+Code in `src-tauri/src/wake_word/wake_word.rs`. 3-phase architecture:
 
-1. **Acquisition audio** via `cpal` (lib audio cross-platform), thread dédié permanent
-2. **VAD (Voice Activity Detection)** par analyse RMS :
-   - Seuil parole : RMS > 0.015 / Seuil silence : RMS < 0.01
-   - Délai confirmation parole : 200ms / silence : 400ms
-   - Pré-buffer : 400ms (capture audio avant détection)
-   - Échantillonnage RMS toutes les 33ms
-3. **Transcription et matching** :
-   - Audio resample 16kHz, transcrit par Parakeet INT8
-   - Double matching : exact substring + fuzzy Levenshtein (distance ≤1 pour mots courts, ≤2 sinon)
-   - Normalisation : minuscules, suppression accents (NFD)
+1. **Audio acquisition** via `cpal` (cross-platform audio lib), dedicated permanent thread
+2. **VAD (Voice Activity Detection)** via RMS analysis:
+   - Speech threshold: RMS > 0.015 / Silence threshold: RMS < 0.01
+   - Speech confirmation delay: 200ms / Silence: 400ms
+   - Pre-buffer: 400ms (captures audio before detection)
+   - RMS sampling every 33ms
+3. **Transcription and matching**:
+   - Audio resampled to 16kHz, transcribed by Parakeet INT8
+   - Double matching: exact substring + fuzzy Levenshtein (distance ≤1 for short words, ≤2 otherwise)
+   - Normalization: lowercase, accent removal (NFD)
 
-4 triggers configurables : "ok alix" (dictée), "alix command", "alix cancel", "alix validate".
+4 configurable triggers: "ok alix" (dictation), "alix command", "alix cancel", "alix validate".
 
-5 types d'actions : Record, RecordLlmMode, Cancel, Validate.
+5 action types: Record, RecordLlmMode, Cancel, Validate.
 
-#### État actuel dans dictee
+#### Current State in dictee
 
-Push-to-talk uniquement (raccourci clavier). Pas de VAD ni wake word.
+Push-to-talk only (keyboard shortcut). No VAD or wake word.
 
-#### Pistes d'implémentation pour dictee
+#### Implementation Options for dictee
 
-- Nécessiterait un daemon supplémentaire en écoute permanente
-- Consommation CPU/batterie non négligeable
-- Complexité : VAD + transcription continue + matching = beaucoup de code
-- Alternative plus simple : intégrer un VAD basique dans `transcribe-client` pour du "auto-stop" (arrêter l'enregistrement quand l'utilisateur se tait), sans wake word
+- Would require an additional daemon listening permanently
+- Non-negligible CPU/battery consumption
+- Complexity: VAD + continuous transcription + matching = a lot of code
+- Simpler alternative: integrate basic VAD into `transcribe-client` for "auto-stop" (stop recording when the user stops speaking), without wake word
 
-Recommandation : **reporter** — le push-to-talk est suffisant pour la majorité des usages. Un auto-stop basé sur le silence serait un premier pas plus réaliste.
+Recommendation: **defer** — push-to-talk is sufficient for the majority of use cases. Silence-based auto-stop would be a more realistic first step.
 
 ---
 
-## Roadmap suggérée (post-v1.0.0)
+## Suggested Roadmap (post-v1.0.0)
 
 | Version | Feature | Effort |
 |---------|---------|--------|
-| v1.1.0 | Moteur de règles configurable | ~2-3 jours |
-| v1.1.0 | LLM post-processing (correction grammaire, prompts custom) | ~2 jours |
-| v1.2.0 | Dictionnaire de remplacement (exact, puis phonétique) | ~1-3 jours |
-| v1.3.0+ | Auto-stop silence (VAD basique) | ~2 jours |
-| v2.0.0+ | Wake word / voice activation | ~1-2 semaines |
+| v1.1.0 | Configurable rules engine | ~2-3 days |
+| v1.1.0 | LLM post-processing (grammar correction, custom prompts) | ~2 days |
+| v1.2.0 | Replacement dictionary (exact, then phonetic) | ~1-3 days |
+| v1.3.0+ | Silence auto-stop (basic VAD) | ~2 days |
+| v2.0.0+ | Wake word / voice activation | ~1-2 weeks |
 
 ## Notes
 
-- Murmure est AGPL v3 — ne pas copier de code directement, s'inspirer de l'architecture uniquement
-- Le pipeline Murmure (dictionnaire → LLM → rules) est un bon modèle d'ordonnancement
-- La conversion nombres→chiffres (`text2num`) est une feature subtile mais très utile au quotidien
+- Murmure is AGPL v3 — do not copy code directly, draw inspiration from the architecture only
+- The Murmure pipeline (dictionary → LLM → rules) is a good ordering model
+- The number→digit conversion (`text2num`) is a subtle but very useful day-to-day feature

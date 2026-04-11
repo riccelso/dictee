@@ -1,39 +1,39 @@
-# Compilation depuis les sources
+# Building from source
 
-[Retour au README principal](../README.md)
+[Back to main README](../README.md)
 
 ---
 
-## Prérequis
+## Prerequisites
 
 - **Rust** (edition 2021)
-- **ffmpeg** (pour la conversion des formats audio)
-- **Go** + **scdoc** + **libxkbcommon-dev** (pour dotool)
+- **ffmpeg** (for audio format conversion)
+- **Go** + **scdoc** + **libxkbcommon-dev** (for dotool)
 
 ## Build
 
 ```bash
-# CPU uniquement
+# CPU only
 cargo build --release
 
-# CUDA + diarisation
+# CUDA + diarization
 cargo build --release --features "cuda,sortformer"
 
-# Paquets Debian (CPU + CUDA)
+# Debian packages (CPU + CUDA)
 ./build-deb.sh
 ```
 
-## Features Cargo
+## Cargo Features
 
 | Feature | Description |
 |---------|-------------|
-| `cpu` | Exécution CPU (défaut) |
-| `cuda` | GPU NVIDIA via CUDA |
-| `tensorrt` | Optimisation TensorRT |
+| `cpu` | CPU execution (default) |
+| `cuda` | NVIDIA GPU via CUDA |
+| `tensorrt` | TensorRT optimization |
 | `coreml` | Apple CoreML |
 | `directml` | Microsoft DirectML |
 | `openvino` | Intel OpenVINO |
-| `sortformer` | Diarisation (nécessaire pour `*-diarize`) |
+| `sortformer` | Diarization (required for `*-diarize`) |
 
 ## Tests
 
@@ -42,24 +42,24 @@ cargo test
 cargo test --features sortformer
 ```
 
-## Pipeline audio (architecture interne)
+## Audio pipeline (internal architecture)
 
 ```
-Audio (tout format)
-    │ ffmpeg (si non-WAV)
+Audio (any format)
+    │ ffmpeg (if not WAV)
 WAV 16kHz mono
     │ preemphasis (0.97)
 STFT (n_fft=512, hop=160, win=400, Hann)
     │
 Mel-spectrogram (128 bins, Slaney)
     │
-Modèle ONNX (ParakeetTDT / Nemotron)
+ONNX model (ParakeetTDT / Nemotron)
     │
-Décodeur (tokens → texte)
+Decoder (tokens → text)
     │
-Agrégation timestamps (tokens → mots → phrases)
-    │ [optionnel]
-Sortformer (diarisation)
+Timestamp aggregation (tokens → words → sentences)
+    │ [optional]
+Sortformer (diarization)
     │
-Texte final avec horodatages / locuteurs
+Final text with timestamps / speakers
 ```

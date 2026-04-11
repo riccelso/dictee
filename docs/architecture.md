@@ -107,7 +107,8 @@ Runtime state:
   - `openrouter`,
   - `gemini`/`google`,
   - `anthropic`,
-  - `groq`.
+  - `groq`,
+  - `openai_compatible` (generic OpenAI-compatible endpoint — LM Studio, LocalAI, Ollama OpenAI mode, text-generation-webui, etc.; configured via `DICTEE_LLM_OPENAI_COMPAT_URL` and optional `DICTEE_LLM_OPENAI_COMPAT_KEY`).
 - The script supports verbose diagnostics:
   - CLI flag `-v/--verbose`,
   - env flags `DICTEE_PP_VERBOSE=true` or `DICTEE_VERBOSE=true`,

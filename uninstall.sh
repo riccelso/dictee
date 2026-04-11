@@ -1,5 +1,5 @@
 #!/bin/bash
-# uninstall.sh — Désinstallation de dictee
+# uninstall.sh — Uninstall dictee
 # Usage : sudo ./uninstall.sh
 set -e
 
@@ -7,7 +7,7 @@ PREFIX="/usr/local"
 MODEL_DIR="/usr/share/dictee"
 
 if [ "$(id -u)" -ne 0 ]; then
-    echo "Ce script doit être lancé avec sudo :"
+    echo "This script must be run with sudo:"
     echo "  sudo ./uninstall.sh"
     exit 1
 fi
@@ -15,11 +15,11 @@ fi
 REAL_USER="${SUDO_USER:-$USER}"
 REAL_HOME=$(eval echo "~$REAL_USER")
 
-echo "=== Désinstallation de dictee ==="
+echo "=== Uninstalling dictee ==="
 echo ""
 
-# Arrêter les services
-echo "→ Arrêt des services"
+# Stop services
+echo "-> Stopping services"
 su "$REAL_USER" -c "systemctl --user stop dictee 2>/dev/null || true"
 su "$REAL_USER" -c "systemctl --user stop dictee-tray 2>/dev/null || true"
 su "$REAL_USER" -c "systemctl --user stop dictee-ptt 2>/dev/null || true"
@@ -27,19 +27,19 @@ su "$REAL_USER" -c "systemctl --user disable dictee 2>/dev/null || true"
 su "$REAL_USER" -c "systemctl --user disable dictee-tray 2>/dev/null || true"
 su "$REAL_USER" -c "systemctl --user disable dictee-ptt 2>/dev/null || true"
 
-# Binaires
-echo "→ Suppression des binaires"
+# Binaries
+echo "-> Removing binaries"
 for bin in transcribe transcribe-daemon transcribe-client transcribe-diarize \
            transcribe-stream-diarize dictee dictee-setup dictee-tray dictee-ptt dotool dotoold; do
     rm -f "$PREFIX/bin/$bin"
 done
 
 # Udev rules
-echo "→ Suppression des règles udev"
+echo "-> Removing udev rules"
 rm -f "/etc/udev/rules.d/80-dotool.rules"
 
 # Man pages
-echo "→ Suppression des pages de manuel"
+echo "-> Removing man pages"
 for man in transcribe transcribe-daemon transcribe-client transcribe-diarize \
            transcribe-stream-diarize dictee dictee-setup dictee-tray; do
     rm -f "$PREFIX/share/man/man1/$man.1"
@@ -47,35 +47,35 @@ for man in transcribe transcribe-daemon transcribe-client transcribe-diarize \
 done
 
 # Desktop entry
-echo "→ Suppression du fichier .desktop"
+echo "-> Removing .desktop file"
 rm -f "$PREFIX/share/applications/dictee-setup.desktop"
 rm -f "$PREFIX/share/applications/dictee-tray.desktop"
 
-# Services systemd
-echo "→ Suppression des services systemd"
+# Systemd services
+echo "-> Removing systemd services"
 rm -f "$REAL_HOME/.config/systemd/user/dictee.service"
 rm -f "$REAL_HOME/.config/systemd/user/dictee-tray.service"
 rm -f "$REAL_HOME/.config/systemd/user/dictee-ptt.service"
 su "$REAL_USER" -c "systemctl --user daemon-reload 2>/dev/null || true"
 
-# Icônes
-echo "→ Suppression des icônes"
+# Icons
+echo "-> Removing icons"
 for icon in parakeet-active parakeet-active-dark parakeet-inactive parakeet-inactive-dark; do
     rm -f "$REAL_HOME/.local/share/icons/hicolor/scalable/apps/$icon.svg"
 done
 
-# Modèles (demander confirmation)
+# Models (ask confirmation)
 if [ -d "$MODEL_DIR" ]; then
     echo ""
-    read -p "Supprimer les modèles ONNX ($MODEL_DIR, ~5 Go) ? [o/N] " reply
-    if [ "$reply" = "o" ] || [ "$reply" = "O" ]; then
+    read -p "Remove ONNX models ($MODEL_DIR, ~5 GB)? [y/N] " reply
+    if [ "$reply" = "y" ] || [ "$reply" = "Y" ]; then
         rm -rf "$MODEL_DIR"
-        echo "  Modèles supprimés."
+        echo "  Models removed."
     else
-        echo "  Modèles conservés."
+        echo "  Models kept."
     fi
 fi
 
 echo ""
-echo "=== Désinstallation terminée ==="
+echo "=== Uninstall complete ==="
 echo ""
