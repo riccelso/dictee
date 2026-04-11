@@ -106,7 +106,7 @@
 [en] /[,.\s]*exclamation mark new line[,.\s]*/!\n/ig
 [en] /[,.\s]*colon new line[,.\s]*/:\n/ig
 [en] /[,.\s]*semicolon new line[,.\s]*/;\n/ig
-[en] /[,.\s]*comma new line[,.\s]*/,\n/ig
+[en] /[,.\s]*\bcomma\b new line[,.\s]*/,\n/ig
 [en] /[,.\s]*period new line[,.\s]*/.\n/ig
 # Symbol forms
 [en] /\s*:\s*new line[,.\s]*/:\n/ig
@@ -122,7 +122,7 @@
 [en] /[,.\s]*question mark[,.\s]*/?/ig
 [en] /[,.\s]*exclamation mark[,.\s]*/!/ig
 [en] /[,.\s]*colon[,.\s]*/: /ig
-[en] /[,.\s]*comma[,.\s]*/, /ig
+[en] /[,.\s]*\bcomma\b[,.\s]*/, /ig
 # Quotes & parentheses
 [en] /[,.\s]*open quote[,.\s]*/"/ig
 [en] /[,.\s]*close quote[,.\s]*/"/ig
@@ -172,14 +172,14 @@
 [es] /[,.\s]*signo de exclamación nueva línea[,.\s]*/!\n/ig
 [es] /[,.\s]*dos puntos nueva línea[,.\s]*/:\n/ig
 [es] /[,.\s]*punto y coma nueva línea[,.\s]*/;\n/ig
-[es] /[,.\s]*coma nueva línea[,.\s]*/,\n/ig
+[es] /[,.\s]*\bcoma\b nueva línea[,.\s]*/,\n/ig
 # 3b. Compound commands BEFORE simple ones (punto y coma before coma)
 [es] /[,.\s]*punto y coma[,.\s]*/; /ig
 [es] /[,.\s]*puntos suspensivos[,.\s]*/…/ig
 [es] /[,.\s]*signo de interrogación[,.\s]*/?/ig
 [es] /[,.\s]*signo de exclamación[,.\s]*/!/ig
 [es] /[,.\s]*dos puntos[,.\s]*/: /ig
-[es] /[,.\s]*coma[,.\s]*/, /ig
+[es] /[,.\s]*\bcoma\b[,.\s]*/, /ig
 # Quotes & parentheses
 [es] /[,.\s]*abrir comillas[,.\s]*/"/ig
 [es] /[,.\s]*cerrar comillas[,.\s]*/"/ig

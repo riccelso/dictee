@@ -38,6 +38,12 @@ CLIPBOARD="${DICTEE_CLIPBOARD:-true}"
 ANIMATION="${DICTEE_ANIMATION:-speech}"
 PASTE_MODE="${DICTEE_PASTE_MODE:-clipboard}"  # auto|clipboard|dotool
 
+# Make sure child processes (dictee-postprocess, translators, etc.) receive
+# the effective source/target language even when dictee.conf is sourced
+# without "export" statements.
+export DICTEE_LANG_SOURCE="$LANG_SOURCE"
+export DICTEE_LANG_TARGET="$LANG_TARGET"
+
 # Détection du layout clavier pour dotool (localectl > setxkbmap > us)
 if [ -z "$DOTOOL_XKB_LAYOUT" ]; then
     DOTOOL_XKB_LAYOUT=$(localectl status 2>/dev/null | awk '/X11 Layout/{print $3}')
