@@ -44,11 +44,11 @@ cp ./dictee-ptt.py "$PKG_DIR/usr/bin/dictee-ptt"
 cp ./dictee-postprocess.py "$PKG_DIR/usr/bin/dictee-postprocess"
 chmod 755 "$PKG_DIR/usr/bin/dictee" "$PKG_DIR/usr/bin/dictee-setup" "$PKG_DIR/usr/bin/dictee-tray" "$PKG_DIR/usr/bin/dictee-ptt" "$PKG_DIR/usr/bin/dictee-postprocess"
 
-# Copy default post-processing rules
+# Copier les règles de post-traitement par défaut
 cp ./rules.conf.default "$PKG_DIR/usr/share/dictee/rules.conf.default"
 
-# Copy assets (SVG banners for wizard)
-echo "=== Copying assets ==="
+# Copier les assets (bannières SVG pour le wizard)
+echo "=== Copie des assets ==="
 mkdir -p "$PKG_DIR/usr/share/dictee/assets"
 cp ./assets/banner-dark.svg ./assets/banner-light.svg "$PKG_DIR/usr/share/dictee/assets/"
 if [ -d "./assets/logos" ]; then
@@ -62,7 +62,7 @@ for lang in fr de es it uk pt; do
     msgfmt -o "po/$lang.mo" "po/$lang.po" 2>/dev/null || true
     mkdir -p "$PKG_DIR/usr/share/locale/$lang/LC_MESSAGES"
     cp "po/$lang.mo" "$PKG_DIR/usr/share/locale/$lang/LC_MESSAGES/dictee.mo"
-    # Internal copy (postinst restores them if dpkg -r removed them)
+    # Copie interne (postinst les restaure si dpkg -r les a supprimées)
     mkdir -p "$PKG_DIR/usr/share/dictee/locale/$lang/LC_MESSAGES"
     cp "po/$lang.mo" "$PKG_DIR/usr/share/dictee/locale/$lang/LC_MESSAGES/dictee.mo"
 done
@@ -71,13 +71,13 @@ done
 build_dotool() {
     echo "=== Building dotool ==="
 
-    # Check build dependencies
+    # Vérifier les dépendances de compilation
     local missing=()
     command -v go >/dev/null || missing+=("golang-go")
     command -v scdoc >/dev/null || missing+=("scdoc")
     dpkg -s libxkbcommon-dev >/dev/null 2>&1 || missing+=("libxkbcommon-dev")
     if [ ${#missing[@]} -gt 0 ]; then
-        echo "Missing dependencies to build dotool: ${missing[*]}"
+        echo "Dépendances manquantes pour compiler dotool : ${missing[*]}"
         echo "  sudo apt install ${missing[*]}"
         exit 1
     fi
@@ -248,7 +248,7 @@ build_tarball() {
     mkdir -p "$TARBALL_DIR/usr/share/applications"
     mkdir -p "$TARBALL_DIR/etc/udev/rules.d"
 
-    # Binaries (latest compiled = CPU)
+    # Binaires (derniers compilés = CPU)
     for bin in transcribe transcribe-daemon transcribe-client transcribe-diarize transcribe-stream-diarize; do
         cp "target/release/$bin" "$TARBALL_DIR/usr/bin/"
     done
@@ -273,7 +273,7 @@ build_tarball() {
     cp "$PKG_DIR/usr/share/man/man1/"*.1 "$TARBALL_DIR/usr/share/man/man1/" 2>/dev/null || true
     cp "$PKG_DIR/usr/share/man/fr/man1/"*.1 "$TARBALL_DIR/usr/share/man/fr/man1/" 2>/dev/null || true
 
-    # Icons
+    # Icônes
     cp "$PKG_DIR/usr/share/icons/hicolor/scalable/apps/"*.svg "$TARBALL_DIR/usr/share/icons/hicolor/scalable/apps/"
 
     # Locales

@@ -184,7 +184,7 @@ for file in "${TDT_FILES[@]}"; do
     fi
 done
 
-# Assets (SVG banners for wizard)
+# Assets (bannières SVG pour le wizard)
 echo "→ Installing assets"
 install -d "$MODEL_DIR/assets"
 if [ -d "$SCRIPT_DIR/pkg/dictee/usr/share/dictee/assets" ]; then
@@ -199,7 +199,7 @@ if [ -d "$SCRIPT_DIR/pkg/dictee/usr/share/dictee/assets" ]; then
     fi
 fi
 
-# Default post-processing rules
+# Règles de post-traitement par défaut
 # Prefer the repository root file (source of truth during local development),
 # fallback to the packaged file when installing from assembled artifacts.
 if [ -f "$SCRIPT_DIR/rules.conf.default" ]; then
@@ -208,7 +208,7 @@ elif [ -f "$SCRIPT_DIR/pkg/dictee/usr/share/dictee/rules.conf.default" ]; then
     install -Dm644 "$SCRIPT_DIR/pkg/dictee/usr/share/dictee/rules.conf.default" "$MODEL_DIR/rules.conf.default"
 fi
 
-# Model directory (writable by dictee-setup)
+# Répertoire des modèles (accessible en écriture pour dictee-setup)
 echo "→ Creating model directories"
 for d in "$MODEL_DIR" "$MODEL_DIR/tdt" "$MODEL_DIR/sortformer" "$MODEL_DIR/nemotron"; do
     mkdir -p "$d"

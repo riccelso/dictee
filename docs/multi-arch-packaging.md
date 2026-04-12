@@ -1,61 +1,61 @@
-# Multi-architecture and multi-distribution — Packaging Roadmap
+# Multi-architecture et multi-distribution — Roadmap packaging
 
-> Post-v1.0.0 — packaging for other architectures and Linux distributions.
+> Post-v1.0.0 — packaging pour d'autres architectures et distributions Linux.
 
-## Current state (v1.0.0)
+## État actuel (v1.0.0)
 
-- **Architecture**: amd64 (x86_64) only
-- **Formats**: .deb (Debian/Ubuntu), .tar.gz (generic)
-- **Packages**: dictee-cuda, dictee-cpu, dictee-plasmoid
-- **Build**: `build-deb.sh`, native compilation
+- **Architecture** : amd64 (x86_64) uniquement
+- **Formats** : .deb (Debian/Ubuntu), .tar.gz (générique)
+- **Paquets** : dictee-cuda, dictee-cpu, dictee-plasmoid
+- **Build** : `build-deb.sh`, compilation native
 
-## Target architectures
+## Architectures cibles
 
-### aarch64 (ARM64) — High priority
+### aarch64 (ARM64) — Priorité haute
 
-Target: Raspberry Pi 5, ARM servers (Oracle Cloud, AWS Graviton), Asahi Linux (Apple Silicon).
+Cible : Raspberry Pi 5, serveurs ARM (Oracle Cloud, AWS Graviton), Asahi Linux (Apple Silicon).
 
-**Constraints:**
-- Rust cross-compilation: well supported via `cross` or `cargo-cross`
-- dotool (Go): native cross-compilation (`GOARCH=arm64`)
-- ONNX Runtime (`ort`): precompiled binaries available for aarch64
-- CUDA: available on aarch64 (Jetson, servers)
-- Parakeet model: identical (portable ONNX), ~2.5 GB RAM required
+**Contraintes :**
+- Cross-compilation Rust : bien supportée via `cross` ou `cargo-cross`
+- dotool (Go) : cross-compilation native (`GOARCH=arm64`)
+- ONNX Runtime (`ort`) : binaires précompilés disponibles pour aarch64
+- CUDA : disponible sur aarch64 (Jetson, serveurs)
+- Modèle Parakeet : identique (ONNX portable), ~2.5 Go RAM nécessaire
 
-**Approach:**
+**Approche :**
 ```bash
 # Via cross (Docker-based)
 cargo install cross
 cross build --release --target aarch64-unknown-linux-gnu
 
-# Or via native toolchain
+# Ou via toolchain native
 rustup target add aarch64-unknown-linux-gnu
 sudo apt install gcc-aarch64-linux-gnu
 cargo build --release --target aarch64-unknown-linux-gnu
 ```
 
-**Packages produced:**
+**Paquets produits :**
 - `dictee-cpu_X.X.X_arm64.deb`
 - `dictee-cuda_X.X.X_arm64.deb`
 - `dictee-X.X.X_arm64.tar.gz`
 
-### armv7 / riscv64 — Not planned
+### armv7 / riscv64 — Non prévu
 
-- armv7 (ARM32): insufficient RAM for Parakeet (2.5 GB model)
-- riscv64: ONNX Runtime not supported
+- armv7 (ARM32) : RAM insuffisante pour Parakeet (2.5 Go de modèle)
+- riscv64 : ONNX Runtime pas supporté
 
-## Target distributions
+## Distributions cibles
 
-### RPM (Fedora, openSUSE, RHEL) — High priority
+### RPM (Fedora, openSUSE, RHEL) — Priorité haute
 
-Second largest Linux user base after Debian/Ubuntu.
+Deuxième plus grande base d'utilisateurs Linux après Debian/Ubuntu.
 
-**Approach:**
-- Use `fpm` (Effing Package Manager) to convert or generate directly
-- Or write a native `.spec` file for `rpmbuild`
+**Approche :**
+- Utiliser `fpm` (Effing Package Manager) pour convertir ou générer directement
+- Ou écrire un `.spec` natif pour `rpmbuild`
 
 ```bash
-# Via fpm (simplest)
+# Via fpm (le plus simple)
 gem install fpm
 fpm -s dir -t rpm -n dictee-cpu -v 1.0.0 \
     --architecture x86_64 \
@@ -63,11 +63,11 @@ fpm -s dir -t rpm -n dictee-cpu -v 1.0.0 \
     --description "Fast speech-to-text with NVIDIA Parakeet" \
     usr/=/usr/
 
-# Or convert from the .deb
+# Ou convertir depuis le .deb
 fpm -s deb -t rpm dictee-cpu_1.0.0_amd64.deb
 ```
 
-**Dependencies to adapt:**
+**Dépendances à adapter :**
 | Debian (.deb) | Fedora (.rpm) |
 |---|---|
 | `pipewire` | `pipewire` |
@@ -78,18 +78,18 @@ fpm -s deb -t rpm dictee-cpu_1.0.0_amd64.deb
 | `python3-numpy` | `python3-numpy` |
 | `wl-clipboard` | `wl-clipboard` |
 
-**Packages produced:**
+**Paquets produits :**
 - `dictee-cpu-X.X.X-1.x86_64.rpm`
 - `dictee-cuda-X.X.X-1.x86_64.rpm`
-- `dictee-cpu-X.X.X-1.aarch64.rpm` (when ARM64 is ready)
+- `dictee-cpu-X.X.X-1.aarch64.rpm` (quand ARM64 prêt)
 
-### AUR PKGBUILD (Arch Linux) — Medium priority
+### AUR PKGBUILD (Arch Linux) — Priorité moyenne
 
-Active community, low effort (single PKGBUILD file).
+Communauté active, effort faible (un seul fichier PKGBUILD).
 
-**Approach:**
+**Approche :**
 ```bash
-# PKGBUILD — compile from source
+# PKGBUILD — compile depuis les sources
 pkgname=dictee
 pkgver=1.0.0
 pkgrel=1
@@ -126,23 +126,23 @@ package() {
 }
 ```
 
-Arch already has `dotool` in the community repositories → no need to bundle it.
+Arch a déjà `dotool` dans les dépôts communautaires → pas besoin de le bundler.
 
-**Publication:** submit to https://aur.archlinux.org/
+**Publication :** soumettre sur https://aur.archlinux.org/
 
-## Target build matrix
+## Matrice de build cible
 
 | Arch | .deb | .rpm | AUR | .tar.gz |
 |------|------|------|-----|---------|
 | **amd64** | CPU + CUDA | CPU + CUDA | PKGBUILD | CPU |
 | **aarch64** | CPU + CUDA | CPU + CUDA | PKGBUILD | CPU |
 
-## CI/CD Automation (GitHub Actions)
+## Automatisation CI/CD (GitHub Actions)
 
-To automate multi-arch/multi-distro builds:
+Pour automatiser les builds multi-arch/multi-distro :
 
 ```yaml
-# .github/workflows/release.yml (sketch)
+# .github/workflows/release.yml (esquisse)
 strategy:
   matrix:
     include:
@@ -157,13 +157,13 @@ strategy:
         features: "sortformer"
 ```
 
-Use `cross` in CI for ARM64 cross-compilation.
+Utiliser `cross` dans le CI pour la cross-compilation ARM64.
 
 ## Roadmap
 
-| Version | Target | Effort |
+| Version | Cible | Effort |
 |---------|-------|--------|
-| v1.1.0 | .rpm amd64 (Fedora/openSUSE) via `fpm` | ~1 day |
-| v1.1.0 | AUR PKGBUILD (Arch) | ~0.5 day |
-| v1.2.0 | aarch64 .deb + .rpm + .tar.gz | ~2-3 days |
-| v1.2.0 | GitHub Actions multi-arch CI/CD | ~1-2 days |
+| v1.1.0 | .rpm amd64 (Fedora/openSUSE) via `fpm` | ~1 jour |
+| v1.1.0 | AUR PKGBUILD (Arch) | ~0.5 jour |
+| v1.2.0 | aarch64 .deb + .rpm + .tar.gz | ~2-3 jours |
+| v1.2.0 | GitHub Actions CI/CD multi-arch | ~1-2 jours |

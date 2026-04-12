@@ -19,85 +19,24 @@ import locale
 import tempfile
 
 try:
-    from PyQt6.QtCore import (
-        Qt,
-        QThread,
-        QTimer,
-        QIODevice,
-        QObject,
-        pyqtSignal as Signal,
-    )
-    from PyQt6.QtGui import (
-        QKeySequence,
-        QIcon,
-        QPainter,
-        QColor,
-        QLinearGradient,
-        QImage,
-        QPixmap,
-    )
+    from PyQt6.QtCore import Qt, QThread, QTimer, QIODevice, QObject, pyqtSignal as Signal
+    from PyQt6.QtGui import QKeySequence, QIcon, QPainter, QColor, QLinearGradient, QImage, QPixmap
     from PyQt6.QtWidgets import (
-        QApplication,
-        QDialog,
-        QVBoxLayout,
-        QHBoxLayout,
-        QGroupBox,
-        QLabel,
-        QPushButton,
-        QRadioButton,
-        QButtonGroup,
-        QComboBox,
-        QFormLayout,
-        QProgressBar,
-        QMessageBox,
-        QSizePolicy,
-        QCheckBox,
-        QFrame,
-        QLineEdit,
-        QScrollArea,
-        QWidget,
-        QStackedWidget,
-        QSlider,
-        QTextEdit,
-        QToolTip,
-        QGridLayout,
+        QApplication, QDialog, QVBoxLayout, QHBoxLayout, QGroupBox,
+        QLabel, QPushButton, QRadioButton, QButtonGroup, QComboBox,
+        QFormLayout, QProgressBar, QMessageBox, QSizePolicy, QCheckBox,
+        QFrame, QLineEdit, QScrollArea, QWidget, QStackedWidget, QSlider, QTextEdit,
+        QToolTip, QGridLayout,
     )
     from PyQt6.QtMultimedia import QAudioSource, QAudioFormat, QMediaDevices
 except ImportError:
     from PySide6.QtCore import Qt, QThread, QTimer, QIODevice, QObject, Signal
-    from PySide6.QtGui import (
-        QKeySequence,
-        QIcon,
-        QPainter,
-        QColor,
-        QLinearGradient,
-        QImage,
-        QPixmap,
-    )
+    from PySide6.QtGui import QKeySequence, QIcon, QPainter, QColor, QLinearGradient, QImage, QPixmap
     from PySide6.QtWidgets import (
-        QApplication,
-        QDialog,
-        QVBoxLayout,
-        QHBoxLayout,
-        QGroupBox,
-        QLabel,
-        QPushButton,
-        QRadioButton,
-        QButtonGroup,
-        QComboBox,
-        QFormLayout,
-        QProgressBar,
-        QMessageBox,
-        QSizePolicy,
-        QCheckBox,
-        QGridLayout,
-        QFrame,
-        QLineEdit,
-        QScrollArea,
-        QWidget,
-        QStackedWidget,
-        QSlider,
-        QTextEdit,
+        QApplication, QDialog, QVBoxLayout, QHBoxLayout, QGroupBox,
+        QLabel, QPushButton, QRadioButton, QButtonGroup, QComboBox,
+        QFormLayout, QProgressBar, QMessageBox, QSizePolicy, QCheckBox, QGridLayout,
+        QFrame, QLineEdit, QScrollArea, QWidget, QStackedWidget, QSlider, QTextEdit,
         QToolTip,
     )
     from PySide6.QtMultimedia import QAudioSource, QAudioFormat, QMediaDevices
@@ -160,59 +99,29 @@ LANGUAGES = [
     ("ar", "العربية"),
 ]
 
-# Languages supported by each ASR backend (for filtering source language)
-# Parakeet TDT 0.6B v3: 25 European languages (source: NVIDIA HuggingFace)
+# Langues supportées par chaque backend ASR (pour filtrer la langue source)
+# Parakeet TDT 0.6B v3 : 25 langues européennes (source: NVIDIA HuggingFace)
 PARAKEET_LANGUAGES = {
-    "bg",
-    "cs",
-    "da",
-    "de",
-    "el",
-    "en",
-    "es",
-    "et",
-    "fi",
-    "fr",
-    "hr",
-    "hu",
-    "it",
-    "lt",
-    "lv",
-    "mt",
-    "nl",
-    "pl",
-    "pt",
-    "ro",
-    "ru",
-    "sk",
-    "sl",
-    "sv",
-    "uk",
+    "bg", "cs", "da", "de", "el", "en", "es", "et", "fi", "fr",
+    "hr", "hu", "it", "lt", "lv", "mt", "nl", "pl", "pt", "ro",
+    "ru", "sk", "sl", "sv", "uk",
 }
 ASR_LANGUAGES = {
     "parakeet": PARAKEET_LANGUAGES,
     "vosk": {"fr", "en", "de", "es", "it", "pt", "ru", "zh", "ja"},
-    "whisper": None,  # None = all
+    "whisper": None,   # None = toutes
 }
 
-# Languages supported by each translation backend (for filtering target language)
-# None = all, set() = limited
+# Langues supportées par chaque backend de traduction (pour filtrer la langue cible)
+# None = toutes, set() = limité
 TRANSLATE_LANGUAGES = {
     "trans:google": None,
     "trans:bing": None,
     "ollama": None,
-    "libretranslate": None,  # Dynamic — filtered via installed languages
+    "libretranslate": None,  # Dynamique — filtré via les langues installées
 }
 
-LLM_PROVIDER_ORDER = [
-    "ollama",
-    "openai",
-    "openrouter",
-    "gemini",
-    "anthropic",
-    "groq",
-    "openai_compatible",
-]
+LLM_PROVIDER_ORDER = ["ollama", "openai", "openrouter", "gemini", "anthropic", "groq"]
 LLM_PROVIDER_LABELS = {
     "ollama": "ollama",
     "openai": "OpenAI",
@@ -220,25 +129,14 @@ LLM_PROVIDER_LABELS = {
     "gemini": "Google (Gemini)",
     "anthropic": "Claude",
     "groq": "Groq",
-    "openai_compatible": "OpenAI Compatible",
 }
 LLM_PROVIDER_MODELS = {
     "ollama": ["ministral:3b", "gemma3:4b", "gemma3:1b"],
     "openai": ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"],
-    "openrouter": [
-        "openai/gpt-4.1-mini",
-        "google/gemini-2.5-flash",
-        "meta-llama/llama-3.3-70b-instruct",
-    ],
+    "openrouter": ["openai/gpt-4.1-mini", "google/gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct"],
     "gemini": ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
     "anthropic": ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5"],
-    "groq": [
-        "llama-3.1-8b-instant",
-        "llama-3.3-70b-versatile",
-        "openai/gpt-oss-120b",
-        "openai/gpt-oss-20b",
-    ],
-    "openai_compatible": ["GLM-4.5-air", "GLM-4.7", "GLM-5-Turbo"],
+    "groq": ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "openai/gpt-oss-120b", "openai/gpt-oss-20b"],
 }
 LLM_PROVIDER_ENV_VARS = {
     "openai": "OPENAI_API_KEY",
@@ -246,7 +144,6 @@ LLM_PROVIDER_ENV_VARS = {
     "gemini": "GOOGLE_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
     "groq": "GROQ_API_KEY",
-    "openai_compatible": "DICTEE_LLM_OPENAI_COMPAT_KEY",
 }
 
 DICTEE_COMMAND = "/usr/bin/dictee"
@@ -254,74 +151,58 @@ DICTEE_TRANSLATE_COMMAND = "/usr/bin/dictee --translate"
 DICTEE_DESKTOP = "dictee.desktop"
 DICTEE_TRANSLATE_DESKTOP = "dictee-translate.desktop"
 
-# Mapping Qt key → Linux keycode (evdev) for dictee-ptt
+# Mapping Qt key → Linux keycode (evdev) pour dictee-ptt
 QT_TO_LINUX_KEYCODE = {
-    0x01000030: 59,  # F1
-    0x01000031: 60,  # F2
-    0x01000032: 61,  # F3
-    0x01000033: 62,  # F4
-    0x01000034: 63,  # F5
-    0x01000035: 64,  # F6
-    0x01000036: 65,  # F7
-    0x01000037: 66,  # F8
-    0x01000038: 67,  # F9
-    0x01000039: 68,  # F10
-    0x0100003A: 87,  # F11
-    0x0100003B: 88,  # F12
-    0x01000000: 1,  # Escape
+    0x01000030: 59,   # F1
+    0x01000031: 60,   # F2
+    0x01000032: 61,   # F3
+    0x01000033: 62,   # F4
+    0x01000034: 63,   # F5
+    0x01000035: 64,   # F6
+    0x01000036: 65,   # F7
+    0x01000037: 66,   # F8
+    0x01000038: 67,   # F9
+    0x01000039: 68,   # F10
+    0x0100003a: 87,   # F11
+    0x0100003b: 88,   # F12
+    0x01000000: 1,    # Escape
     0x01000010: 110,  # Home
     0x01000011: 107,  # End
     0x01000016: 119,  # Delete
     0x01000015: 118,  # Insert
     0x01000017: 104,  # Pause/Break
     0x01000009: 210,  # Print Screen (SysRq)
-    0x01000025: 14,  # Backspace — no, not useful
+    0x01000025: 14,   # Backspace — non, pas utile
 }
 
 LINUX_KEYCODE_NAMES = {
-    59: "F1",
-    60: "F2",
-    61: "F3",
-    62: "F4",
-    63: "F5",
-    64: "F6",
-    65: "F7",
-    66: "F8",
-    67: "F9",
-    68: "F10",
-    87: "F11",
-    88: "F12",
-    1: "Escape",
-    110: "Home",
-    107: "End",
-    119: "Delete",
-    118: "Insert",
+    59: "F1", 60: "F2", 61: "F3", 62: "F4", 63: "F5", 64: "F6",
+    65: "F7", 66: "F8", 67: "F9", 68: "F10", 87: "F11", 88: "F12",
+    1: "Escape", 110: "Home", 107: "End", 119: "Delete", 118: "Insert",
 }
 
 
 def qt_key_to_linux_keycode(seq):
-    """Convert a QKeySequence to a Linux evdev keycode."""
+    """Convertit une QKeySequence en keycode Linux evdev."""
     if seq is None:
         return 0
-    key_int = seq[0].toCombined() if hasattr(seq[0], "toCombined") else int(seq[0])
-    # Mask Qt modifiers (0x0e000000)
-    key_only = key_int & 0x01FFFFFF
+    key_int = seq[0].toCombined() if hasattr(seq[0], 'toCombined') else int(seq[0])
+    # Masquer les modificateurs Qt (0x0e000000)
+    key_only = key_int & 0x01ffffff
     return QT_TO_LINUX_KEYCODE.get(key_only, 0)
 
 
 def linux_keycode_name(code):
-    """Return the human-readable name of a Linux keycode."""
+    """Retourne le nom lisible d'un keycode Linux."""
     return LINUX_KEYCODE_NAMES.get(code, f"Key {code}")
-
-
 ANIMATION_SPEECH_REPO = "rcspam/animation-speech"
 ANIMATION_SPEECH_BIN = "animation-speech-ctl"
 
-# === Desktop Environment Detection ===
+# === Détection DE ===
 
 
 def detect_desktop():
-    """Return (display_name, type) with type = 'kde' | 'gnome' | 'unsupported'."""
+    """Retourne (nom_affiché, type) avec type = 'kde' | 'gnome' | 'unsupported'."""
     desktop = os.environ.get("XDG_CURRENT_DESKTOP", "").upper()
     if "KDE" in desktop:
         return "KDE Plasma", "kde"
@@ -333,11 +214,11 @@ def detect_desktop():
     return raw, "unsupported"
 
 
-# === Config file ===
+# === Config fichier ===
 
 
 def load_config():
-    """Load dictee.conf and return a dict of values."""
+    """Charge dictee.conf et retourne un dict des valeurs."""
     conf = {}
     if os.path.isfile(CONF_PATH):
         with open(CONF_PATH) as f:
@@ -351,48 +232,19 @@ def load_config():
     return conf
 
 
-def save_config(
-    backend,
-    lang_source,
-    lang_target,
-    clipboard=True,
-    animation="speech",
-    ollama_model="translategemma",
-    ollama_cpu=False,
-    trans_engine="google",
-    lt_port=5000,
-    lt_langs="",
-    asr_backend="parakeet",
-    whisper_model="small",
-    whisper_lang="",
-    vosk_model="fr",
-    audio_source="",
-    ptt_mode="toggle",
-    ptt_key=67,
-    ptt_key_translate=0,
-    ptt_mod_translate="",
-    ptt_key_llm=0,
-    ptt_key_translate_llm=0,
-    postprocess=True,
-    pp_elisions=True,
-    pp_numbers=True,
-    pp_typography=True,
-    pp_capitalization=True,
-    pp_fuzzy_dict=True,
-    llm_postprocess=False,
-    llm_provider="ollama",
-    llm_model="gemma3:4b",
-    llm_timeout=10,
-    llm_cpu=False,
-    llm_openai_api_key="",
-    llm_openrouter_api_key="",
-    llm_google_api_key="",
-    llm_anthropic_api_key="",
-    llm_groq_api_key="",
-    llm_compat_url="",
-    llm_compat_api_key="",
-):
-    """Write dictee.conf (without DICTEE_TRANSLATE — triggering is at runtime)."""
+def save_config(backend, lang_source, lang_target, clipboard=True, animation="speech",
+                ollama_model="translategemma", ollama_cpu=False, trans_engine="google",
+                lt_port=5000, lt_langs="", asr_backend="parakeet", whisper_model="small",
+                whisper_lang="", vosk_model="fr", audio_source="",
+                ptt_mode="toggle", ptt_key=67, ptt_key_translate=0,
+                ptt_mod_translate="", postprocess=True,
+                pp_elisions=True, pp_numbers=True, pp_typography=True,
+                pp_capitalization=True, pp_fuzzy_dict=True,
+                llm_postprocess=False, llm_provider="ollama", llm_model="gemma3:4b",
+                llm_timeout=10, llm_cpu=False,
+                llm_openai_api_key="", llm_openrouter_api_key="", llm_google_api_key="",
+                llm_anthropic_api_key="", llm_groq_api_key=""):
+    """Écrit dictee.conf (sans DICTEE_TRANSLATE — le déclenchement est au runtime)."""
     os.makedirs(os.path.dirname(CONF_PATH), exist_ok=True)
     with open(CONF_PATH, "w") as f:
         f.write("# Generated by dictee-setup\n")
@@ -427,11 +279,7 @@ def save_config(
             f.write(f"DICTEE_PTT_KEY_TRANSLATE={ptt_key_translate}\n")
         if ptt_mod_translate:
             f.write(f"DICTEE_PTT_MOD_TRANSLATE={ptt_mod_translate}\n")
-        if ptt_key_llm:
-            f.write(f"DICTEE_PTT_KEY_LLM={ptt_key_llm}\n")
-        if ptt_key_translate_llm:
-            f.write(f"DICTEE_PTT_KEY_TRANSLATE_LLM={ptt_key_translate_llm}\n")
-        # Post-processing
+        # Post-traitement
         f.write(f"DICTEE_POSTPROCESS={'true' if postprocess else 'false'}\n")
         if not pp_elisions:
             f.write("DICTEE_PP_ELISIONS=false\n")
@@ -460,26 +308,22 @@ def save_config(
             f.write(f"ANTHROPIC_API_KEY={llm_anthropic_api_key}\n")
         if llm_groq_api_key:
             f.write(f"GROQ_API_KEY={llm_groq_api_key}\n")
-        if llm_compat_url:
-            f.write(f"DICTEE_LLM_OPENAI_COMPAT_URL={llm_compat_url}\n")
-        if llm_compat_api_key:
-            f.write(f"DICTEE_LLM_OPENAI_COMPAT_KEY={llm_compat_api_key}\n")
 
 
-# === KDE Shortcut ===
+# === Raccourci KDE ===
 
 
 def qt_key_to_kde(key_sequence):
-    """Convert a QKeySequence to KDE format ('Meta+D')."""
+    """Convertit une QKeySequence en format KDE ('Meta+D')."""
     return key_sequence.toString()
 
 
 def find_kde_shortcut_for_command(command):
-    """Find the existing KDE shortcut for a given command.
+    """Trouve le raccourci KDE existant pour une commande donnée.
 
-    Scans .desktop files in ~/.local/share/applications/ to find
-    those whose Exec matches, then reads the shortcut in kglobalshortcutsrc.
-    Returns (shortcut, desktop_name) or (None, None).
+    Scanne les .desktop dans ~/.local/share/applications/ pour trouver
+    ceux dont Exec correspond, puis lit le raccourci dans kglobalshortcutsrc.
+    Retourne (raccourci, nom_desktop) ou (None, None).
     """
     apps_dir = os.path.expanduser("~/.local/share/applications")
     rc_path = os.path.expanduser("~/.config/kglobalshortcutsrc")
@@ -487,7 +331,7 @@ def find_kde_shortcut_for_command(command):
     if not os.path.isdir(apps_dir) or not os.path.isfile(rc_path):
         return None, None
 
-    # Find .desktop files whose Exec matches
+    # Trouver les .desktop dont Exec correspond
     matching_desktops = []
     try:
         for fname in os.listdir(apps_dir):
@@ -510,7 +354,7 @@ def find_kde_shortcut_for_command(command):
     if not matching_desktops:
         return None, None
 
-    # Read the shortcut from kglobalshortcutsrc
+    # Lire le raccourci depuis kglobalshortcutsrc
     try:
         with open(rc_path) as f:
             content = f.read()
@@ -522,7 +366,7 @@ def find_kde_shortcut_for_command(command):
         idx = content.find(target)
         if idx < 0:
             continue
-        for line in content[idx + len(target) :].split("\n"):
+        for line in content[idx + len(target):].split("\n"):
             line = line.strip()
             if not line:
                 continue
@@ -537,7 +381,7 @@ def find_kde_shortcut_for_command(command):
 
 
 def _dictee_desktop_names():
-    """Return the names of all .desktop files that point to dictee."""
+    """Retourne les noms de tous les .desktop qui pointent vers dictee."""
     apps_dir = os.path.expanduser("~/.local/share/applications")
     names = {DICTEE_DESKTOP, DICTEE_TRANSLATE_DESKTOP}
     try:
@@ -559,7 +403,7 @@ def _dictee_desktop_names():
 
 
 def check_kde_conflict(accel_kde):
-    """Check if the shortcut is already used in kglobalshortcutsrc."""
+    """Vérifie si le raccourci est déjà utilisé dans kglobalshortcutsrc."""
     rc = os.path.expanduser("~/.config/kglobalshortcutsrc")
     if not os.path.isfile(rc):
         return None
@@ -585,11 +429,11 @@ def check_kde_conflict(accel_kde):
 
 
 def apply_kde_shortcut(accel_kde, desktop_name, command, label, key_sequence=None):
-    """Apply the keyboard shortcut under KDE Plasma 6.
+    """Applique le raccourci clavier sous KDE Plasma 6.
 
-    1. Create the .desktop in ~/.local/share/applications/
-    2. Write the shortcut in kglobalshortcutsrc (persistence)
-    3. Register and activate via D-Bus kglobalaccel (immediate activation)
+    1. Crée le .desktop dans ~/.local/share/applications/
+    2. Écrit le raccourci dans kglobalshortcutsrc (persistance)
+    3. Enregistre et active via D-Bus kglobalaccel (activation immédiate)
     """
     apps_dir = os.path.expanduser("~/.local/share/applications")
     os.makedirs(apps_dir, exist_ok=True)
@@ -603,18 +447,14 @@ def apply_kde_shortcut(accel_kde, desktop_name, command, label, key_sequence=Non
         f.write("Type=Application\n")
         f.write("X-KDE-GlobalAccel-CommandShortcut=true\n")
 
-    # Write the shortcut in kglobalshortcutsrc (persistence across reboots)
+    # Écrire le raccourci dans kglobalshortcutsrc (persistance au reboot)
     subprocess.run(
         [
             "kwriteconfig6",
-            "--file",
-            "kglobalshortcutsrc",
-            "--group",
-            "services",
-            "--group",
-            desktop_name,
-            "--key",
-            "_launch",
+            "--file", "kglobalshortcutsrc",
+            "--group", "services",
+            "--group", desktop_name,
+            "--key", "_launch",
             f"{accel_kde},none,{label}",
         ],
         check=True,
@@ -622,20 +462,16 @@ def apply_kde_shortcut(accel_kde, desktop_name, command, label, key_sequence=Non
     subprocess.run(
         [
             "kwriteconfig6",
-            "--file",
-            "kglobalshortcutsrc",
-            "--group",
-            "services",
-            "--group",
-            desktop_name,
-            "--key",
-            "_k_friendly_name",
+            "--file", "kglobalshortcutsrc",
+            "--group", "services",
+            "--group", desktop_name,
+            "--key", "_k_friendly_name",
             label,
         ],
         check=True,
     )
 
-    # Activate immediately via D-Bus kglobalaccel
+    # Activer immédiatement via D-Bus kglobalaccel
     if key_sequence is not None:
         _activate_kde_shortcut_dbus(desktop_name, label, key_sequence)
 
@@ -643,57 +479,47 @@ def apply_kde_shortcut(accel_kde, desktop_name, command, label, key_sequence=Non
 
 
 def _activate_kde_shortcut_dbus(desktop_name, label, key_sequence):
-    """Activate a shortcut via D-Bus kglobalaccel (without session restart).
+    """Active un raccourci via D-Bus kglobalaccel (sans redémarrage de session).
 
-    Uses doRegister + setForeignShortcutKeys to register the component
-    and activate the key immediately in kglobalacceld.
+    Utilise doRegister + setForeignShortcutKeys pour enregistrer le composant
+    et activer la touche immédiatement dans kglobalacceld.
     """
-    # Convert QKeySequence to Qt int code (modifiers | key)
+    # Convertir QKeySequence en code Qt int (modifiers | key)
     try:
         combined = key_sequence[0]
-        # PyQt6: QKeyCombination → .toCombined() → int
+        # PyQt6 : QKeyCombination → .toCombined() → int
         if hasattr(combined, "toCombined"):
             qt_key_int = combined.toCombined()
-        # PySide6: already int or enum with .value
+        # PySide6 : déjà int ou enum avec .value
         elif hasattr(combined, "value"):
             qt_key_int = combined.value
         else:
             qt_key_int = int(combined)
     except (IndexError, TypeError):
-        return  # No valid key
+        return  # Pas de touche valide
 
     action_id = f"['{desktop_name}', '_launch', '{label}', '{label}']"
 
-    # 1. Register the component
+    # 1. Enregistrer le composant
     subprocess.run(
         [
-            "gdbus",
-            "call",
-            "--session",
-            "--dest",
-            "org.kde.kglobalaccel",
-            "--object-path",
-            "/kglobalaccel",
-            "--method",
-            "org.kde.KGlobalAccel.doRegister",
+            "gdbus", "call", "--session",
+            "--dest", "org.kde.kglobalaccel",
+            "--object-path", "/kglobalaccel",
+            "--method", "org.kde.KGlobalAccel.doRegister",
             action_id,
         ],
         capture_output=True,
     )
 
-    # 2. Assign the key
+    # 2. Affecter la touche
     keys = f"[([{qt_key_int}, 0, 0, 0],)]"
     subprocess.run(
         [
-            "gdbus",
-            "call",
-            "--session",
-            "--dest",
-            "org.kde.kglobalaccel",
-            "--object-path",
-            "/kglobalaccel",
-            "--method",
-            "org.kde.KGlobalAccel.setForeignShortcutKeys",
+            "gdbus", "call", "--session",
+            "--dest", "org.kde.kglobalaccel",
+            "--object-path", "/kglobalaccel",
+            "--method", "org.kde.KGlobalAccel.setForeignShortcutKeys",
             action_id,
             keys,
         ],
@@ -702,49 +528,32 @@ def _activate_kde_shortcut_dbus(desktop_name, label, key_sequence):
 
 
 def remove_kde_shortcut(desktop_name):
-    """Remove a global KDE shortcut (deactivate via D-Bus + clean up kglobalshortcutsrc)."""
-    # Remove from kglobalshortcutsrc
+    """Supprime un raccourci KDE global (désactive via D-Bus + nettoie kglobalshortcutsrc)."""
+    # Supprimer de kglobalshortcutsrc
     subprocess.run(
-        [
-            "kwriteconfig6",
-            "--file",
-            "kglobalshortcutsrc",
-            "--group",
-            "services",
-            "--group",
-            desktop_name,
-            "--key",
-            "_launch",
-            "--delete",
-        ],
+        ["kwriteconfig6", "--file", "kglobalshortcutsrc",
+         "--group", "services", "--group", desktop_name,
+         "--key", "_launch", "--delete"],
         capture_output=True,
     )
-    # Deactivate via D-Bus (empty key = no shortcut)
+    # Désactiver via D-Bus (touche vide = aucun raccourci)
     action_id = f"['{desktop_name}', '_launch', '', '']"
     keys = "[([0, 0, 0, 0],)]"
     subprocess.run(
-        [
-            "gdbus",
-            "call",
-            "--session",
-            "--dest",
-            "org.kde.kglobalaccel",
-            "--object-path",
-            "/kglobalaccel",
-            "--method",
-            "org.kde.KGlobalAccel.setForeignShortcutKeys",
-            action_id,
-            keys,
-        ],
+        ["gdbus", "call", "--session",
+         "--dest", "org.kde.kglobalaccel",
+         "--object-path", "/kglobalaccel",
+         "--method", "org.kde.KGlobalAccel.setForeignShortcutKeys",
+         action_id, keys],
         capture_output=True,
     )
 
 
-# === GNOME Shortcut ===
+# === Raccourci GNOME ===
 
 
 def qt_key_to_gnome(key_sequence):
-    """Convert a QKeySequence to GNOME format ('<Super>d')."""
+    """Convertit une QKeySequence en format GNOME ('<Super>d')."""
     s = key_sequence.toString()
     s = s.replace("Meta+", "<Super>")
     s = s.replace("Ctrl+", "<Primary>")
@@ -758,7 +567,7 @@ def qt_key_to_gnome(key_sequence):
 
 
 def apply_gnome_shortcut(accel_gnome):
-    """Apply the keyboard shortcut under GNOME/Unity/Cinnamon."""
+    """Applique le raccourci clavier sous GNOME/Unity/Cinnamon."""
     schema = "org.gnome.settings-daemon.plugins.media-keys"
     base_path = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings"
     slot = "dictee"
@@ -767,9 +576,7 @@ def apply_gnome_shortcut(accel_gnome):
     try:
         result = subprocess.run(
             ["gsettings", "get", schema, "custom-keybindings"],
-            capture_output=True,
-            text=True,
-            check=True,
+            capture_output=True, text=True, check=True,
         )
         current = result.stdout.strip()
         if path not in current:
@@ -800,26 +607,22 @@ def apply_gnome_shortcut(accel_gnome):
 
 
 # === Ollama helpers ===
+
 # (model_id, label, min_ram_gb, min_vram_gb)
 OLLAMA_MODELS = [
     ("translategemma", _("translategemma 4B (3.3 GB, 55 languages, 8 GB RAM)"), 8, 4),
-    (
-        "translategemma:12b",
-        _("translategemma 12B (8 GB, best quality, 16 GB RAM)"),
-        16,
-        8,
-    ),
+    ("translategemma:12b", _("translategemma 12B (8 GB, best quality, 16 GB RAM)"), 16, 8),
     ("aya:8b", _("aya 8B (5 GB, Cohere, 23 languages, 16 GB RAM)"), 16, 8),
 ]
 
 
 def ollama_is_installed():
-    """Check if ollama is installed."""
+    """Vérifie si ollama est installé."""
     return shutil.which("ollama") is not None
 
 
 def get_system_ram_gb():
-    """Return total RAM in GB."""
+    """Retourne la RAM totale en Go."""
     try:
         with open("/proc/meminfo") as f:
             for line in f:
@@ -832,18 +635,13 @@ def get_system_ram_gb():
 
 
 def get_gpu_vram_gb():
-    """Return (total VRAM, free VRAM) in GB. (0, 0) if no GPU."""
+    """Retourne (VRAM totale, VRAM libre) en Go. (0, 0) si pas de GPU."""
     # NVIDIA
     try:
         result = subprocess.run(
-            [
-                "nvidia-smi",
-                "--query-gpu=memory.total,memory.free",
-                "--format=csv,noheader,nounits",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=5,
+            ["nvidia-smi", "--query-gpu=memory.total,memory.free",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5,
         )
         if result.returncode == 0 and result.stdout.strip():
             parts = result.stdout.strip().split("\n")[0].split(",")
@@ -855,13 +653,10 @@ def get_gpu_vram_gb():
     # AMD
     try:
         import glob
-
         for path in glob.glob("/sys/class/drm/card*/device/mem_info_vram_total"):
             total = int(open(path).read().strip())
             free_path = path.replace("vram_total", "vram_used")
-            used = (
-                int(open(free_path).read().strip()) if os.path.exists(free_path) else 0
-            )
+            used = int(open(free_path).read().strip()) if os.path.exists(free_path) else 0
             total_gb = round(total / 1024**3, 1)
             free_gb = round((total - used) / 1024**3, 1)
             return total_gb, free_gb
@@ -871,13 +666,10 @@ def get_gpu_vram_gb():
 
 
 def ollama_list_models():
-    """Return the list of installed ollama models."""
+    """Retourne la liste des modèles ollama installés."""
     try:
         result = subprocess.run(
-            ["ollama", "list"],
-            capture_output=True,
-            text=True,
-            timeout=5,
+            ["ollama", "list"], capture_output=True, text=True, timeout=5,
         )
         if result.returncode == 0:
             models = []
@@ -891,20 +683,17 @@ def ollama_list_models():
 
 
 def ollama_has_model(model_name):
-    """Check if a specific ollama model is installed."""
+    """Vérifie si un modèle ollama spécifique est installé."""
     installed = ollama_list_models()
-
-    # Normalize: "translategemma" → "translategemma:latest"
+    # Normaliser : "translategemma" → "translategemma:latest"
     def _normalize(name):
         return name if ":" in name else name + ":latest"
-
     target = _normalize(model_name)
     return any(_normalize(m) == target for m in installed)
 
 
 class OllamaPullThread(QThread):
-    """Thread to download an ollama model."""
-
+    """Thread pour télécharger un modèle ollama."""
     finished = Signal(bool, str)
     progress = Signal(str)
 
@@ -917,32 +706,27 @@ class OllamaPullThread(QThread):
             self.progress.emit(_("Downloading {model}…").format(model=self.model_name))
             result = subprocess.run(
                 ["ollama", "pull", self.model_name],
-                capture_output=True,
-                text=True,
-                timeout=600,
+                capture_output=True, text=True, timeout=600,
             )
             if result.returncode == 0:
                 self.finished.emit(True, "")
             else:
-                self.finished.emit(
-                    False, result.stderr.strip() or _("Download failed.")
-                )
+                self.finished.emit(False, result.stderr.strip() or _("Download failed."))
         except subprocess.TimeoutExpired:
             self.finished.emit(False, _("Download timed out (10 min)."))
         except Exception as e:
             self.finished.emit(False, str(e))
 
 
-# === ASR Models ===
+# === Modèles ASR ===
 
 MODEL_DIR = "/usr/share/dictee"
 DICTEE_DATA_DIR = os.path.expanduser("~/.local/share/dictee")
 
-# === SVG Logo (assets/ files) ===
-
+# === Logo SVG (fichiers assets/) ===
 
 def _find_assets_dir():
-    """Find the assets/ directory containing SVG banners."""
+    """Trouve le répertoire assets/ contenant les bannières SVG."""
     candidates = [
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets"),
         os.path.join(os.path.dirname(os.path.realpath(__file__)), "assets"),
@@ -954,10 +738,9 @@ def _find_assets_dir():
             return d
     return None
 
-
 ASSETS_DIR = _find_assets_dir()
 
-# === Alternative ASR backends (venvs) ===
+# === Backends ASR alternatifs (venvs) ===
 
 VOSK_VENV = os.path.join(DICTEE_DATA_DIR, "vosk-env")
 WHISPER_VENV = os.path.join(DICTEE_DATA_DIR, "whisper-env")
@@ -978,7 +761,7 @@ WHISPER_MODELS = ["tiny", "small", "medium", "large-v3"]
 
 
 def venv_is_installed(venv_path):
-    """Check if a Python venv is installed and contains packages."""
+    """Vérifie si un venv Python est installé et contient des packages."""
     site = os.path.join(venv_path, "lib")
     if not os.path.isdir(site):
         return False
@@ -990,8 +773,7 @@ def venv_is_installed(venv_path):
 
 
 class VenvInstallThread(QThread):
-    """Thread to create a venv and install a pip package."""
-
+    """Thread pour créer un venv et installer un package pip."""
     finished = Signal(bool, str)
     progress = Signal(str)
 
@@ -1006,9 +788,7 @@ class VenvInstallThread(QThread):
             os.makedirs(self.venv_path, exist_ok=True)
             result = subprocess.run(
                 ["python3", "-m", "venv", self.venv_path],
-                capture_output=True,
-                text=True,
-                timeout=60,
+                capture_output=True, text=True, timeout=60,
             )
             if result.returncode != 0:
                 self.finished.emit(False, result.stderr.strip())
@@ -1017,9 +797,7 @@ class VenvInstallThread(QThread):
             self.progress.emit(_("Installing {pkg}…").format(pkg=self.pip_package))
             result = subprocess.run(
                 [pip, "install", "--upgrade", self.pip_package],
-                capture_output=True,
-                text=True,
-                timeout=600,
+                capture_output=True, text=True, timeout=600,
             )
             if result.returncode != 0:
                 self.finished.emit(False, result.stderr.strip()[-500:])
@@ -1029,7 +807,6 @@ class VenvInstallThread(QThread):
             self.finished.emit(False, _("Installation timed out."))
         except Exception as e:
             self.finished.emit(False, str(e))
-
 
 ASR_MODELS = [
     {
@@ -1048,22 +825,10 @@ ASR_MODELS = [
         "dir": os.path.join(MODEL_DIR, "tdt"),
         "check_file": "encoder-model.onnx",
         "files": [
-            (
-                "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/resolve/main/encoder-model.onnx",
-                "encoder-model.onnx",
-            ),
-            (
-                "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/resolve/main/encoder-model.onnx.data",
-                "encoder-model.onnx.data",
-            ),
-            (
-                "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/resolve/main/decoder_joint-model.onnx",
-                "decoder_joint-model.onnx",
-            ),
-            (
-                "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/resolve/main/vocab.txt",
-                "vocab.txt",
-            ),
+            ("https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/resolve/main/encoder-model.onnx", "encoder-model.onnx"),
+            ("https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/resolve/main/encoder-model.onnx.data", "encoder-model.onnx.data"),
+            ("https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/resolve/main/decoder_joint-model.onnx", "decoder_joint-model.onnx"),
+            ("https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/resolve/main/vocab.txt", "vocab.txt"),
         ],
         "required": True,
     },
@@ -1081,10 +846,7 @@ ASR_MODELS = [
         "dir": os.path.join(MODEL_DIR, "sortformer"),
         "check_file": "diar_streaming_sortformer_4spk-v2.1.onnx",
         "files": [
-            (
-                "https://huggingface.co/altunenes/parakeet-rs/resolve/main/diar_streaming_sortformer_4spk-v2.1.onnx",
-                "diar_streaming_sortformer_4spk-v2.1.onnx",
-            ),
+            ("https://huggingface.co/altunenes/parakeet-rs/resolve/main/diar_streaming_sortformer_4spk-v2.1.onnx", "diar_streaming_sortformer_4spk-v2.1.onnx"),
         ],
         "required": False,
     },
@@ -1102,22 +864,10 @@ ASR_MODELS = [
         "dir": os.path.join(MODEL_DIR, "nemotron"),
         "check_file": "encoder.onnx",
         "files": [
-            (
-                "https://huggingface.co/altunenes/parakeet-rs/resolve/main/nemotron-speech-streaming-en-0.6b/encoder.onnx",
-                "encoder.onnx",
-            ),
-            (
-                "https://huggingface.co/altunenes/parakeet-rs/resolve/main/nemotron-speech-streaming-en-0.6b/encoder.onnx.data",
-                "encoder.onnx.data",
-            ),
-            (
-                "https://huggingface.co/altunenes/parakeet-rs/resolve/main/nemotron-speech-streaming-en-0.6b/decoder_joint.onnx",
-                "decoder_joint.onnx",
-            ),
-            (
-                "https://huggingface.co/altunenes/parakeet-rs/resolve/main/nemotron-speech-streaming-en-0.6b/tokenizer.model",
-                "tokenizer.model",
-            ),
+            ("https://huggingface.co/altunenes/parakeet-rs/resolve/main/nemotron-speech-streaming-en-0.6b/encoder.onnx", "encoder.onnx"),
+            ("https://huggingface.co/altunenes/parakeet-rs/resolve/main/nemotron-speech-streaming-en-0.6b/encoder.onnx.data", "encoder.onnx.data"),
+            ("https://huggingface.co/altunenes/parakeet-rs/resolve/main/nemotron-speech-streaming-en-0.6b/decoder_joint.onnx", "decoder_joint.onnx"),
+            ("https://huggingface.co/altunenes/parakeet-rs/resolve/main/nemotron-speech-streaming-en-0.6b/tokenizer.model", "tokenizer.model"),
         ],
         "required": False,
     },
@@ -1125,13 +875,12 @@ ASR_MODELS = [
 
 
 def model_is_installed(model):
-    """Check if an ASR model is installed."""
+    """Vérifie si un modèle ASR est installé."""
     return os.path.isfile(os.path.join(model["dir"], model["check_file"]))
 
 
 class ModelDownloadThread(QThread):
-    """Thread to download an ASR model."""
-
+    """Thread pour télécharger un modèle ASR."""
     finished = Signal(bool, str)
     progress = Signal(str)
 
@@ -1141,17 +890,11 @@ class ModelDownloadThread(QThread):
 
     def run(self):
         import urllib.request
-
         try:
             model_dir = self.model["dir"]
             os.makedirs(model_dir, exist_ok=True)
-            total_files = len(
-                [
-                    f
-                    for f in self.model["files"]
-                    if not os.path.isfile(os.path.join(model_dir, f[1]))
-                ]
-            )
+            total_files = len([f for f in self.model["files"]
+                               if not os.path.isfile(os.path.join(model_dir, f[1]))])
             done = 0
             for url, filename in self.model["files"]:
                 dest = os.path.join(model_dir, filename)
@@ -1173,46 +916,36 @@ class ModelDownloadThread(QThread):
                             size_mb = downloaded / (1024 * 1024)
                             total_mb = total_size / (1024 * 1024)
                             self.progress.emit(
-                                f"{filename}  {pct}%  ({size_mb:.0f}/{total_mb:.0f} MB)"
-                            )
+                                f"{filename}  {pct}%  ({size_mb:.0f}/{total_mb:.0f} Mo)")
                 done += 1
                 if total_files > 1:
-                    self.progress.emit(
-                        _("Downloaded {done}/{total}").format(
-                            done=done, total=total_files
-                        )
-                    )
+                    self.progress.emit(_("Downloaded {done}/{total}").format(
+                        done=done, total=total_files))
             self.finished.emit(True, "")
         except PermissionError:
-            self.finished.emit(
-                False,
-                _("Permission denied. Run: sudo chmod 777 {dir}").format(
-                    dir=self.model["dir"]
-                ),
-            )
+            self.finished.emit(False, _("Permission denied. Run: sudo chmod 777 {dir}").format(
+                dir=self.model["dir"]))
         except Exception as e:
             self.finished.emit(False, str(e))
 
 
 # === LibreTranslate (Docker) ===
+
 LIBRETRANSLATE_IMAGE = "libretranslate/libretranslate"
 LIBRETRANSLATE_CONTAINER = "dictee-libretranslate"
 LIBRETRANSLATE_PORT = 5000
 
 
 def docker_is_installed():
-    """Check if docker is installed and accessible."""
+    """Vérifie si docker est installé et accessible."""
     return shutil.which("docker") is not None
 
 
 def docker_is_accessible():
-    """Check if the user can run docker (permissions)."""
+    """Vérifie si l'utilisateur peut exécuter docker (permissions)."""
     try:
         result = subprocess.run(
-            ["docker", "info"],
-            capture_output=True,
-            text=True,
-            timeout=5,
+            ["docker", "info"], capture_output=True, text=True, timeout=5,
         )
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -1220,13 +953,11 @@ def docker_is_accessible():
 
 
 def docker_has_image(image=LIBRETRANSLATE_IMAGE):
-    """Check if the Docker image is downloaded."""
+    """Vérifie si l'image Docker est téléchargée."""
     try:
         result = subprocess.run(
             ["docker", "images", "-q", image],
-            capture_output=True,
-            text=True,
-            timeout=5,
+            capture_output=True, text=True, timeout=5,
         )
         return bool(result.stdout.strip())
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -1234,13 +965,11 @@ def docker_has_image(image=LIBRETRANSLATE_IMAGE):
 
 
 def docker_container_running(name=LIBRETRANSLATE_CONTAINER):
-    """Check if the container is running."""
+    """Vérifie si le container est en cours d'exécution."""
     try:
         result = subprocess.run(
             ["docker", "inspect", "-f", "{{.State.Running}}", name],
-            capture_output=True,
-            text=True,
-            timeout=5,
+            capture_output=True, text=True, timeout=5,
         )
         return result.stdout.strip() == "true"
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -1248,13 +977,11 @@ def docker_container_running(name=LIBRETRANSLATE_CONTAINER):
 
 
 def docker_container_exists(name=LIBRETRANSLATE_CONTAINER):
-    """Check if the container exists (stopped or running)."""
+    """Vérifie si le container existe (arrêté ou en cours)."""
     try:
         result = subprocess.run(
             ["docker", "inspect", name],
-            capture_output=True,
-            text=True,
-            timeout=5,
+            capture_output=True, text=True, timeout=5,
         )
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -1265,20 +992,16 @@ _lt_langs_cache = {"langs": [], "time": 0, "port": 0}
 
 
 def libretranslate_available_languages(port=LIBRETRANSLATE_PORT, max_age=5):
-    """Fetch the list of available language codes in LibreTranslate.
-    Cache the result for max_age seconds to avoid blocking the UI."""
+    """Récupère la liste des codes langues disponibles dans LibreTranslate.
+    Cache le résultat pendant max_age secondes pour éviter de bloquer l'UI."""
     import time as _time
-
     now = _time.monotonic()
-    if (
-        _lt_langs_cache["port"] == port
-        and _lt_langs_cache["langs"]
-        and now - _lt_langs_cache["time"] < max_age
-    ):
+    if (_lt_langs_cache["port"] == port
+            and _lt_langs_cache["langs"]
+            and now - _lt_langs_cache["time"] < max_age):
         return _lt_langs_cache["langs"]
     try:
         import urllib.request, json as _json
-
         url = f"http://localhost:{port}/languages"
         with urllib.request.urlopen(url, timeout=3) as resp:
             data = _json.loads(resp.read())
@@ -1290,104 +1013,64 @@ def libretranslate_available_languages(port=LIBRETRANSLATE_PORT, max_age=5):
 
 
 def docker_start_libretranslate(port=LIBRETRANSLATE_PORT, languages="fr,en,es,de"):
-    """Start the LibreTranslate container. Recreate if languages have changed."""
+    """Démarre le container LibreTranslate. Recrée si les langues ont changé."""
     if docker_container_exists():
-        # Check if the existing container's languages match
+        # Vérifier si les langues du conteneur existant correspondent
         needs_recreate = False
         try:
             result = subprocess.run(
                 ["docker", "inspect", "-f", "{{.Args}}", LIBRETRANSLATE_CONTAINER],
-                capture_output=True,
-                text=True,
-                timeout=5,
+                capture_output=True, text=True, timeout=5,
             )
             current_args = result.stdout.strip()
             if f"--load-only {languages}" not in current_args:
                 needs_recreate = True
         except Exception:
-            needs_recreate = True  # When in doubt, recreate
+            needs_recreate = True  # En cas de doute, recréer
         if needs_recreate:
-            subprocess.run(
-                ["docker", "rm", "-f", LIBRETRANSLATE_CONTAINER],
-                capture_output=True,
-                timeout=10,
-            )
-            subprocess.run(
-                [
-                    "docker",
-                    "run",
-                    "-d",
-                    "--name",
-                    LIBRETRANSLATE_CONTAINER,
-                    "-p",
-                    f"{port}:5000",
-                    "--restart",
-                    "unless-stopped",
-                    LIBRETRANSLATE_IMAGE,
-                    "--load-only",
-                    languages,
-                ],
-                capture_output=True,
-                timeout=30,
-            )
-            return
-        subprocess.run(
-            ["docker", "start", LIBRETRANSLATE_CONTAINER],
-            capture_output=True,
-            timeout=10,
-        )
-    else:
-        subprocess.run(
-            [
-                "docker",
-                "run",
-                "-d",
-                "--name",
-                LIBRETRANSLATE_CONTAINER,
-                "-p",
-                f"{port}:5000",
-                "--restart",
-                "unless-stopped",
+            subprocess.run(["docker", "rm", "-f", LIBRETRANSLATE_CONTAINER],
+                           capture_output=True, timeout=10)
+            subprocess.run([
+                "docker", "run", "-d",
+                "--name", LIBRETRANSLATE_CONTAINER,
+                "-p", f"{port}:5000",
+                "--restart", "unless-stopped",
                 LIBRETRANSLATE_IMAGE,
-                "--load-only",
-                languages,
-            ],
-            capture_output=True,
-            timeout=30,
-        )
+                "--load-only", languages,
+            ], capture_output=True, timeout=30)
+            return
+        subprocess.run(["docker", "start", LIBRETRANSLATE_CONTAINER],
+                       capture_output=True, timeout=10)
+    else:
+        subprocess.run([
+            "docker", "run", "-d",
+            "--name", LIBRETRANSLATE_CONTAINER,
+            "-p", f"{port}:5000",
+            "--restart", "unless-stopped",
+            LIBRETRANSLATE_IMAGE,
+            "--load-only", languages,
+        ], capture_output=True, timeout=30)
 
 
 def docker_stop_libretranslate():
-    """Stop the LibreTranslate container."""
-    subprocess.run(
-        ["docker", "stop", LIBRETRANSLATE_CONTAINER], capture_output=True, timeout=15
-    )
+    """Arrête le container LibreTranslate."""
+    subprocess.run(["docker", "stop", LIBRETRANSLATE_CONTAINER],
+                   capture_output=True, timeout=15)
 
 
 def _docker_container_size():
-    """Return the size of the LibreTranslate container (e.g. '1.2 GB')."""
+    """Retourne la taille du conteneur LibreTranslate (ex: '1.2 GB')."""
     try:
         result = subprocess.run(
-            [
-                "docker",
-                "ps",
-                "-s",
-                "--filter",
-                f"name={LIBRETRANSLATE_CONTAINER}",
-                "--format",
-                "{{.Size}}",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
+            ["docker", "ps", "-s", "--filter", f"name={LIBRETRANSLATE_CONTAINER}",
+             "--format", "{{.Size}}"],
+            capture_output=True, text=True, timeout=5)
         size_str = result.stdout.strip()
         if size_str:
-            # Format: "479MB (virtual 1.16GB)" → take "virtual 1.16GB"
+            # Format: "479MB (virtual 1.16GB)" → on prend "virtual 1.16GB"
             if "virtual" in size_str:
                 import re
-
-                m = re.search(r"virtual\s+([\d.]+\s*[KMGT]B)", size_str)
+                m = re.search(r'virtual\s+([\d.]+\s*[KMGT]B)', size_str)
                 if m:
                     return m.group(1)
             return size_str
@@ -1397,8 +1080,7 @@ def _docker_container_size():
 
 
 class DockerPullThread(QThread):
-    """Thread to download the LibreTranslate Docker image."""
-
+    """Thread pour télécharger l'image Docker LibreTranslate."""
     finished = Signal(bool, str)
     progress = Signal(str)
 
@@ -1407,16 +1089,12 @@ class DockerPullThread(QThread):
             self.progress.emit(_("Downloading Docker image…"))
             result = subprocess.run(
                 ["docker", "pull", LIBRETRANSLATE_IMAGE],
-                capture_output=True,
-                text=True,
-                timeout=600,
+                capture_output=True, text=True, timeout=600,
             )
             if result.returncode == 0:
                 self.finished.emit(True, "")
             else:
-                self.finished.emit(
-                    False, result.stderr.strip() or _("Download failed.")
-                )
+                self.finished.emit(False, result.stderr.strip() or _("Download failed."))
         except subprocess.TimeoutExpired:
             self.finished.emit(False, _("Download timed out (10 min)."))
         except Exception as e:
@@ -1424,8 +1102,7 @@ class DockerPullThread(QThread):
 
 
 class _VoskModelDownloadThread(QThread):
-    """Thread to download a Vosk model."""
-
+    """Thread pour télécharger un modèle Vosk."""
     finished = Signal(bool, str)
     progress = Signal(str)
 
@@ -1436,7 +1113,6 @@ class _VoskModelDownloadThread(QThread):
     def run(self):
         import zipfile
         from urllib.request import urlretrieve
-
         try:
             base = os.path.join(DICTEE_DATA_DIR, "vosk-models")
             os.makedirs(base, exist_ok=True)
@@ -1464,8 +1140,7 @@ class _VoskModelDownloadThread(QThread):
 
 
 class _DockerActionThread(QThread):
-    """Thread to start/stop LibreTranslate without blocking the UI."""
-
+    """Thread pour démarrer/arrêter LibreTranslate sans bloquer l'UI."""
     finished = Signal(bool, str)
     progress = Signal(str)
 
@@ -1483,37 +1158,20 @@ class _DockerActionThread(QThread):
                 self._wait_ready()
             elif self._action == "restart":
                 self.progress.emit(_("Stopping container…"))
-                subprocess.run(
-                    ["docker", "rm", "-f", LIBRETRANSLATE_CONTAINER],
-                    capture_output=True,
-                    timeout=15,
-                )
-                self.progress.emit(
-                    _("Starting container with {langs}…").format(langs=self._languages)
-                )
-                result = subprocess.run(
-                    [
-                        "docker",
-                        "run",
-                        "-d",
-                        "--name",
-                        LIBRETRANSLATE_CONTAINER,
-                        "-p",
-                        f"{self._port}:5000",
-                        "--restart",
-                        "unless-stopped",
-                        LIBRETRANSLATE_IMAGE,
-                        "--load-only",
-                        self._languages,
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
+                subprocess.run(["docker", "rm", "-f", LIBRETRANSLATE_CONTAINER],
+                               capture_output=True, timeout=15)
+                self.progress.emit(_("Starting container with {langs}…").format(
+                    langs=self._languages))
+                result = subprocess.run([
+                    "docker", "run", "-d",
+                    "--name", LIBRETRANSLATE_CONTAINER,
+                    "-p", f"{self._port}:5000",
+                    "--restart", "unless-stopped",
+                    LIBRETRANSLATE_IMAGE,
+                    "--load-only", self._languages,
+                ], capture_output=True, text=True, timeout=30)
                 if result.returncode != 0:
-                    self.finished.emit(
-                        False, result.stderr.strip() or _("Docker run failed.")
-                    )
+                    self.finished.emit(False, result.stderr.strip() or _("Docker run failed."))
                     return
                 self._wait_ready()
             else:
@@ -1524,28 +1182,18 @@ class _DockerActionThread(QThread):
             self.finished.emit(False, str(e))
 
     def _wait_ready(self):
-        """Wait for the LibreTranslate API to be ready (max 180s).
-        Detect crashes (missing network, missing model) and report them."""
+        """Attend que l'API LibreTranslate soit prête (max 180s).
+        Détecte les crashs (réseau absent, modèle introuvable) et les remonte."""
         import time, urllib.request
-
         url = f"http://localhost:{self._port}/languages"
         self.progress.emit(_("Starting server…"))
         consecutive_dead = 0
         for i in range(90):
-            # 1. Check if the container is still running
+            # 1. Vérifier si le conteneur tourne encore
             try:
                 state = subprocess.run(
-                    [
-                        "docker",
-                        "inspect",
-                        "-f",
-                        "{{.State.Running}}",
-                        LIBRETRANSLATE_CONTAINER,
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=3,
-                )
+                    ["docker", "inspect", "-f", "{{.State.Running}}", LIBRETRANSLATE_CONTAINER],
+                    capture_output=True, text=True, timeout=3)
                 running = state.stdout.strip() == "true"
             except Exception:
                 running = False
@@ -1554,18 +1202,14 @@ class _DockerActionThread(QThread):
                 if consecutive_dead >= 3:
                     error_msg = self._get_container_error()
                     raise RuntimeError(
-                        _("LibreTranslate container stopped unexpectedly.")
-                        + ("\n" + error_msg if error_msg else "")
-                        + "\n\n"
-                        + _(
-                            "Check your network connection — language models "
-                            "require a download on first use."
-                        )
-                    )
+                        _("LibreTranslate container stopped unexpectedly.") +
+                        ("\n" + error_msg if error_msg else "") +
+                        "\n\n" + _("Check your network connection — language models "
+                                   "require a download on first use."))
             else:
                 consecutive_dead = 0
 
-            # 2. Test if the API responds
+            # 2. Tester si l'API répond
             try:
                 with urllib.request.urlopen(url, timeout=3):
                     self.progress.emit(_("Ready!"))
@@ -1573,47 +1217,32 @@ class _DockerActionThread(QThread):
             except Exception:
                 pass
 
-            # 3. Parse Docker logs to display a clear message
-            # LibreTranslate writes downloads to stdout and server output to stderr
+            # 3. Analyser les logs Docker pour afficher un message clair
+            # LibreTranslate écrit les téléchargements sur stdout et le serveur sur stderr
             try:
                 result = subprocess.run(
                     ["docker", "logs", "--tail", "15", LIBRETRANSLATE_CONTAINER],
-                    capture_output=True,
-                    text=True,
-                    timeout=3,
-                )
-                # Combine stdout (downloads) + stderr (server)
+                    capture_output=True, text=True, timeout=3)
+                # Combiner stdout (téléchargements) + stderr (serveur)
                 log_stdout = result.stdout.strip()
                 log_stderr = result.stderr.strip()
                 log_combined = (log_stdout + "\n" + log_stderr).strip()
                 if log_combined:
                     log_lower = log_combined.lower()
-                    # Detect network errors
-                    if any(
-                        err in log_lower
-                        for err in [
-                            "connectionerror",
-                            "connection refused",
-                            "network is unreachable",
-                            "name resolution",
-                            "temporary failure",
-                            "no route to host",
-                            "could not resolve",
-                            "urlopen error",
-                        ]
-                    ):
+                    # Détecter les erreurs réseau
+                    if any(err in log_lower for err in [
+                        "connectionerror", "connection refused", "network is unreachable",
+                        "name resolution", "temporary failure", "no route to host",
+                        "could not resolve", "urlopen error",
+                    ]):
                         last_line = log_combined.split("\n")[-1]
                         raise RuntimeError(
-                            _("Network error while downloading language models.")
-                            + "\n"
-                            + last_line
-                            + "\n\n"
-                            + _("Check your network connection and retry.")
-                        )
-                    # Priority: stdout (downloads) then stderr (server)
+                            _("Network error while downloading language models.") +
+                            "\n" + last_line +
+                            "\n\n" + _("Check your network connection and retry."))
+                    # Priorité stdout (téléchargements) puis stderr (serveur)
                     msg = self._parse_lt_log(
-                        log_stdout if log_stdout else log_stderr, i * 2
-                    )
+                        log_stdout if log_stdout else log_stderr, i * 2)
                     self.progress.emit(msg)
                 else:
                     self.progress.emit(_("Starting server… ({s}s)").format(s=i * 2))
@@ -1626,22 +1255,21 @@ class _DockerActionThread(QThread):
 
     @staticmethod
     def _parse_lt_log(log_text, elapsed_s):
-        """Parse LibreTranslate logs and return a clear user message."""
-
-        # Walk lines from most recent to oldest
+        """Analyse les logs LibreTranslate et retourne un message utilisateur clair."""
+        import re
+        # Parcourir les lignes de la plus récente à la plus ancienne
         lines = log_text.strip().split("\n")
         for line in reversed(lines):
             ll = line.lower().strip()
             if not ll:
                 continue
             # "Downloading French → English (1.9) ..."
-            m = re.search(r"[Dd]ownloading\s+(\w+)\s*→\s*(\w+)", line)
+            m = re.search(r'[Dd]ownloading\s+(\w+)\s*→\s*(\w+)', line)
             if m:
                 return _("Downloading: {src} → {tgt}…").format(
-                    src=m.group(1), tgt=m.group(2)
-                )
+                    src=m.group(1), tgt=m.group(2))
             # "Downloading model: fr"
-            m = re.search(r"[Dd]ownloading model:\s*(\w+)", line)
+            m = re.search(r'[Dd]ownloading model:\s*(\w+)', line)
             if m:
                 return _("Downloading model: {lang}…").format(lang=m.group(1))
             # "Downloading MiniSBD models"
@@ -1650,17 +1278,16 @@ class _DockerActionThread(QThread):
             # "Updating language models" / "Found 98 models" / "Keep 20 models"
             if "updating language models" in ll:
                 return _("Updating language models…")
-            m = re.search(r"[Ff]ound (\d+) models", line)
+            m = re.search(r'[Ff]ound (\d+) models', line)
             if m:
                 return _("Found {n} models, selecting…").format(n=m.group(1))
             if "keep" in ll and "models" in ll:
                 return _("Downloading language model…")
             # "Loaded support for 9 languages (18 models total)!"
-            m = re.search(r"[Ll]oaded support for (\d+) languages.*?(\d+) models", line)
+            m = re.search(r'[Ll]oaded support for (\d+) languages.*?(\d+) models', line)
             if m:
                 return _("Loaded {n} languages ({m} models).").format(
-                    n=m.group(1), m=m.group(2)
-                )
+                    n=m.group(1), m=m.group(2))
             # "Booting..."
             if ll == "booting...":
                 return _("Starting server…")
@@ -1673,21 +1300,18 @@ class _DockerActionThread(QThread):
             # "Booting worker"
             if "booting worker" in ll:
                 return _("Starting server…")
-        # Fallback with timer
+        # Fallback avec timer
         return _("Starting server… ({s}s)").format(s=elapsed_s)
 
     def _get_container_error(self):
-        """Retrieve the last log lines from the crashed container."""
+        """Récupère les dernières lignes de log du conteneur crashé."""
         try:
             result = subprocess.run(
                 ["docker", "logs", "--tail", "10", LIBRETRANSLATE_CONTAINER],
-                capture_output=True,
-                text=True,
-                timeout=3,
-            )
+                capture_output=True, text=True, timeout=3)
             log = result.stderr.strip() or result.stdout.strip()
             if log:
-                # Keep the last 3 relevant lines
+                # Garder les 3 dernières lignes pertinentes
                 lines = [l for l in log.split("\n") if l.strip()][-3:]
                 return "\n".join(lines)
         except Exception:
@@ -1695,7 +1319,7 @@ class _DockerActionThread(QThread):
         return ""
 
 
-# === Install thread ===
+# === Thread d'installation ===
 
 
 class InstallThread(QThread):
@@ -1706,22 +1330,15 @@ class InstallThread(QThread):
         import json
         import urllib.request
         import urllib.error
-
         try:
             self.progress.emit(_("Checking latest release…"))
-            api_url = (
-                f"https://api.github.com/repos/{ANIMATION_SPEECH_REPO}/releases/latest"
-            )
-            req = urllib.request.Request(
-                api_url, headers={"Accept": "application/vnd.github+json"}
-            )
+            api_url = f"https://api.github.com/repos/{ANIMATION_SPEECH_REPO}/releases/latest"
+            req = urllib.request.Request(api_url, headers={"Accept": "application/vnd.github+json"})
             try:
                 with urllib.request.urlopen(req, timeout=15) as resp:
                     release = json.loads(resp.read().decode())
             except urllib.error.URLError as e:
-                self.finished.emit(
-                    False, _("Cannot reach GitHub: {err}").format(err=str(e))
-                )
+                self.finished.emit(False, _("Cannot reach GitHub: {err}").format(err=str(e)))
                 return
 
             assets = release.get("assets", [])
@@ -1739,9 +1356,8 @@ class InstallThread(QThread):
 
             asset = next((a for a in assets if a["name"].endswith(pattern)), None)
             if not asset:
-                self.finished.emit(
-                    False, _("No {pat} found in the release.").format(pat=pattern)
-                )
+                self.finished.emit(False,
+                    _("No {pat} found in the release.").format(pat=pattern))
                 return
 
             self.progress.emit(_("Downloading…"))
@@ -1751,29 +1367,21 @@ class InstallThread(QThread):
             self.progress.emit(_("Installing…"))
             if pattern == ".deb":
                 result = subprocess.run(
-                    [
-                        "pkexec",
-                        "bash",
-                        "-c",
-                        f"dpkg -i '{dest}'; apt-get install -f -y",
-                    ],
-                    capture_output=True,
-                    text=True,
+                    ["pkexec", "bash", "-c", f"dpkg -i '{dest}'; apt-get install -f -y"],
+                    capture_output=True, text=True,
                 )
             elif pattern == ".rpm":
                 result = subprocess.run(
                     ["pkexec", "rpm", "-U", dest],
-                    capture_output=True,
-                    text=True,
+                    capture_output=True, text=True,
                 )
             else:
                 result = subprocess.run(
                     ["pkexec", "tar", "xzf", dest, "-C", "/usr/local"],
-                    capture_output=True,
-                    text=True,
+                    capture_output=True, text=True,
                 )
 
-            # Cleanup
+            # Nettoyage
             try:
                 for f in os.listdir(tmp_dir):
                     os.remove(os.path.join(tmp_dir, f))
@@ -1784,19 +1392,17 @@ class InstallThread(QThread):
             if result.returncode == 0:
                 self.finished.emit(True, "")
             else:
-                self.finished.emit(
-                    False, result.stderr.strip() or _("Installation error.")
-                )
+                self.finished.emit(False, result.stderr.strip() or _("Installation error."))
 
         except Exception as e:
             self.finished.emit(False, str(e))
 
 
-# === Shortcut capture button ===
+# === Bouton capture raccourci ===
 
 
 class ShortcutButton(QPushButton):
-    """Button that captures a key combination when activated."""
+    """Bouton qui capture une combinaison de touches quand activé."""
 
     shortcutCaptured = Signal(QKeySequence)
 
@@ -1819,22 +1425,18 @@ class ShortcutButton(QPushButton):
 
         key = event.key()
 
-        # Ignore lone modifiers
-        # PyQt6: scoped enums (Qt.Key.Key_X), PySide6: flat enums (Qt.Key_X)
+        # Ignorer les modificateurs seuls
+        # PyQt6 : enums scoped (Qt.Key.Key_X), PySide6 : enums flat (Qt.Key_X)
         _Key = getattr(Qt, "Key", Qt)
         if key in (
-            _Key.Key_Shift,
-            _Key.Key_Control,
-            _Key.Key_Alt,
-            _Key.Key_Meta,
-            _Key.Key_Super_L,
-            _Key.Key_Super_R,
+            _Key.Key_Shift, _Key.Key_Control, _Key.Key_Alt,
+            _Key.Key_Meta, _Key.Key_Super_L, _Key.Key_Super_R,
             _Key.Key_AltGr,
         ):
             return
 
         modifiers = event.modifiers()
-        # PyQt6: .value to convert to int, PySide6: already int
+        # PyQt6 : .value pour convertir en int, PySide6 : déjà int
         key_int = key.value if hasattr(key, "value") else int(key)
         mod_int = modifiers.value if hasattr(modifiers, "value") else int(modifiers)
         seq = QKeySequence(mod_int | key_int)
@@ -1852,8 +1454,10 @@ class ShortcutButton(QPushButton):
 # === Audio sources ===
 
 
+
+
 class LevelMeter(QWidget):
-    """Custom VU meter — direct QPainter rendering, very responsive."""
+    """VU-mètre custom — rendu direct QPainter, très réactif."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1887,7 +1491,7 @@ class LevelMeter(QWidget):
 
 
 class AudioLevelMonitor:
-    """VU meter via Qt Multimedia — QAudioSource + readyRead, zero threads."""
+    """VU-mètre via Qt Multimedia — QAudioSource + readyRead, zéro thread."""
 
     def __init__(self, meter, device=None):
         self._meter = meter
@@ -1915,7 +1519,7 @@ class AudioLevelMonitor:
         data = self._io.readAll().data()
         n = len(data) // 2
         if n > 0:
-            samples = struct.unpack(f"<{n}h", data[: n * 2])
+            samples = struct.unpack(f"<{n}h", data[:n * 2])
             rms = math.sqrt(sum(s * s for s in samples) / n)
             if rms > 1:
                 db = 20 * math.log10(rms / 32767)
@@ -1926,8 +1530,7 @@ class AudioLevelMonitor:
 
 
 class TestDicteeThread(QThread):
-    """Records the microphone then transcribes via transcribe-client <file>."""
-
+    """Enregistre le micro puis transcrit via transcribe-client <fichier>."""
     result = Signal(str)
 
     def __init__(self, duration=5, postprocess=False, parent=None):
@@ -1949,33 +1552,21 @@ class TestDicteeThread(QThread):
     def run(self):
         wav_path = os.path.join(tempfile.gettempdir(), "dictee_test.wav")
         try:
-            # Record the microphone
+            # Enregistrer le micro
             if shutil.which("pw-record"):
-                cmd = [
-                    "pw-record",
-                    "--format=s16",
-                    "--rate=16000",
-                    "--channels=1",
-                    wav_path,
-                ]
+                cmd = ["pw-record", "--format=s16", "--rate=16000", "--channels=1",
+                       wav_path]
             elif shutil.which("parecord"):
-                cmd = [
-                    "parecord",
-                    "--format=s16le",
-                    "--rate=16000",
-                    "--channels=1",
-                    "--file-format=wav",
-                    wav_path,
-                ]
+                cmd = ["parecord", "--format=s16le", "--rate=16000", "--channels=1",
+                       "--file-format=wav", wav_path]
             else:
                 self.result.emit(_("Error: ") + "pw-record / parecord not found")
                 return
 
             self._rec_proc = subprocess.Popen(
-                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
+                cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-            # Wait for the requested duration
+            # Attendre la durée demandée
             try:
                 self._rec_proc.wait(timeout=self._duration)
             except subprocess.TimeoutExpired:
@@ -1989,22 +1580,17 @@ class TestDicteeThread(QThread):
                 self.result.emit(_("Error: ") + _("No audio recorded."))
                 return
 
-            # Transcribe via transcribe-client <file>
+            # Transcrire via transcribe-client <fichier>
             r = subprocess.run(
                 ["transcribe-client", wav_path],
-                capture_output=True,
-                text=True,
-                timeout=15,
+                capture_output=True, text=True, timeout=15,
             )
             if r.returncode == 0 and r.stdout.strip():
                 text = r.stdout.strip()
                 if self._postprocess and shutil.which("dictee-postprocess"):
                     pp = subprocess.run(
                         ["dictee-postprocess"],
-                        input=text,
-                        capture_output=True,
-                        text=True,
-                        timeout=15,
+                        input=text, capture_output=True, text=True, timeout=15,
                     )
                     if pp.returncode == 0 and pp.stdout.strip():
                         text = pp.stdout.strip()
@@ -2029,8 +1615,7 @@ class TestDicteeThread(QThread):
 
 
 class ScrollGuardFilter(QObject):
-    """Prevent QComboBox/QSlider/QSpinBox from capturing scroll when they don't have focus."""
-
+    """Empêche les QComboBox/QSlider/QSpinBox de capturer le scroll quand ils n'ont pas le focus."""
     def eventFilter(self, obj, event):
         if event.type() == event.Type.Wheel and not obj.hasFocus():
             event.ignore()
@@ -2053,7 +1638,7 @@ class DicteeSetupDialog(QDialog):
         self._venv_threads = {}
         self._audio_monitor = None
         self._test_thread = None
-        self._dirty = True  # config not saved initially
+        self._dirty = True  # config non enregistrée au départ
 
         self.conf = load_config()
 
@@ -2062,7 +1647,7 @@ class DicteeSetupDialog(QDialog):
         else:
             self._build_classic_ui()
 
-        # Prevent accidental scroll on interactive widgets
+        # Empêcher le scroll accidentel sur les widgets interactifs
         self._scroll_guard = ScrollGuardFilter(self)
         for w in self.findChildren((QComboBox, QSlider)):
             w.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -2085,9 +1670,7 @@ class DicteeSetupDialog(QDialog):
     def _get_ollama_models(self):
         models = list(LLM_PROVIDER_MODELS["ollama"])
         try:
-            out = subprocess.run(
-                ["ollama", "list"], capture_output=True, text=True, timeout=5
-            )
+            out = subprocess.run(["ollama", "list"], capture_output=True, text=True, timeout=5)
             if out.returncode == 0:
                 for line in out.stdout.strip().splitlines()[1:]:
                     parts = line.split()
@@ -2105,24 +1688,9 @@ class DicteeSetupDialog(QDialog):
 
     def _detect_llm_provider_status(self, provider):
         if provider == "ollama":
-            return (
-                _("Ready") if shutil.which("ollama") else _("ollama is not installed")
-            )
-        if provider == "openai_compatible":
-            compat_url = (
-                self.txt_llm_compat_url.text().strip()
-                if hasattr(self, "txt_llm_compat_url")
-                else ""
-            )
-            if not compat_url:
-                return _("missing base URL")
-            return _("Ready")
+            return _("Ready") if shutil.which("ollama") else _("ollama is not installed")
         env_var = LLM_PROVIDER_ENV_VARS.get(provider)
-        configured_key = (
-            self._sanitize_env_value(self._llm_api_keys.get(env_var, ""))
-            if env_var
-            else ""
-        )
+        configured_key = self._sanitize_env_value(self._llm_api_keys.get(env_var, "")) if env_var else ""
         if env_var and not (configured_key or os.environ.get(env_var)):
             return _("missing {env_var}").format(env_var=env_var)
         return _("Ready")
@@ -2131,24 +1699,16 @@ class DicteeSetupDialog(QDialog):
         prev_provider = getattr(self, "_llm_active_provider", None)
         if prev_provider in LLM_PROVIDER_ENV_VARS and hasattr(self, "txt_llm_api_key"):
             prev_env_var = LLM_PROVIDER_ENV_VARS[prev_provider]
-            self._llm_api_keys[prev_env_var] = self._sanitize_env_value(
-                self.txt_llm_api_key.text()
-            )
+            self._llm_api_keys[prev_env_var] = self._sanitize_env_value(self.txt_llm_api_key.text())
         self._llm_active_provider = self.cmb_llm_provider.currentData() or "ollama"
         self._refresh_llm_provider_ui()
 
     def _on_llm_api_key_changed(self, value):
-        provider = (
-            self.cmb_llm_provider.currentData()
-            if hasattr(self, "cmb_llm_provider")
-            else None
-        )
+        provider = self.cmb_llm_provider.currentData() if hasattr(self, "cmb_llm_provider") else None
         env_var = LLM_PROVIDER_ENV_VARS.get(provider)
         if env_var:
             self._llm_api_keys[env_var] = self._sanitize_env_value(value)
-        self.lbl_llm_status.setText(
-            self._detect_llm_provider_status(provider or "ollama")
-        )
+        self.lbl_llm_status.setText(self._detect_llm_provider_status(provider or "ollama"))
 
     def _refresh_llm_provider_ui(self):
         if not hasattr(self, "cmb_llm_provider") or not hasattr(self, "cmb_llm_model"):
@@ -2164,11 +1724,7 @@ class DicteeSetupDialog(QDialog):
         self.cmb_llm_model.blockSignals(False)
 
         if getattr(self, "_llm_ui_initialized", False):
-            preferred = (
-                current_text
-                if current_text in models
-                else (models[0] if models else current_text)
-            )
+            preferred = current_text if current_text in models else (models[0] if models else current_text)
         else:
             preferred = current_text or (models[0] if models else "")
         idx = self.cmb_llm_model.findText(preferred)
@@ -2178,23 +1734,16 @@ class DicteeSetupDialog(QDialog):
             self.cmb_llm_model.setEditText(preferred)
 
         is_ollama = provider == "ollama"
-        is_compat = provider == "openai_compatible"
         self.chk_llm_cpu.setVisible(is_ollama)
         self.lbl_llm_vram.setVisible(is_ollama)
-        self.lbl_llm_compat_url.setVisible(is_compat)
-        self.txt_llm_compat_url.setVisible(is_compat)
         api_env_var = LLM_PROVIDER_ENV_VARS.get(provider)
         has_api_field = api_env_var is not None
         self.lbl_llm_api_key.setVisible(has_api_field)
         self.txt_llm_api_key.setVisible(has_api_field)
         if has_api_field:
-            self.lbl_llm_api_key.setText(
-                _("API key ({env_var}):").format(env_var=api_env_var)
-            )
+            self.lbl_llm_api_key.setText(_("API key ({env_var}):").format(env_var=api_env_var))
             self.txt_llm_api_key.blockSignals(True)
-            self.txt_llm_api_key.setText(
-                self._sanitize_env_value(self._llm_api_keys.get(api_env_var, ""))
-            )
+            self.txt_llm_api_key.setText(self._sanitize_env_value(self._llm_api_keys.get(api_env_var, "")))
             self.txt_llm_api_key.blockSignals(False)
         else:
             self.txt_llm_api_key.clear()
@@ -2217,7 +1766,7 @@ class DicteeSetupDialog(QDialog):
         layout.setSpacing(16)
         layout.setContentsMargins(20, 20, 20, 16)
 
-        # -- ASR backend section --
+        # -- Section backend ASR --
         grp_asr = QGroupBox(_("ASR backend"))
         lay_asr = QVBoxLayout(grp_asr)
         lay_asr.setSpacing(8)
@@ -2240,15 +1789,14 @@ class DicteeSetupDialog(QDialog):
             self.w_parakeet_options.setVisible(backend == "parakeet")
             self.w_vosk_options.setVisible(backend == "vosk")
             self.w_whisper_options.setVisible(backend == "whisper")
-            if hasattr(self, "combo_src"):
+            if hasattr(self, 'combo_src'):
                 self._update_src_languages()
-
         self.cmb_asr_backend.currentIndexChanged.connect(lambda: _on_asr_changed())
         _on_asr_changed()
 
         layout.addWidget(grp_asr)
 
-        # -- Shortcut section --
+        # -- Section raccourci --
         grp_shortcut = QGroupBox(_("Keyboard shortcut"))
         lay_sc = QVBoxLayout(grp_shortcut)
         lay_sc.setSpacing(8)
@@ -2256,7 +1804,7 @@ class DicteeSetupDialog(QDialog):
         self._build_shortcut_section(lay_sc)
         layout.addWidget(grp_shortcut)
 
-        # -- Visual feedback section --
+        # -- Section retour visuel --
         grp_visual = QGroupBox(_("Visual feedback"))
         lay_vis = QVBoxLayout(grp_visual)
         lay_vis.setSpacing(6)
@@ -2264,7 +1812,7 @@ class DicteeSetupDialog(QDialog):
         self._build_visual_section(lay_vis, conf)
         layout.addWidget(grp_visual)
 
-        # -- Translation section --
+        # -- Section traduction --
         grp_translate = QGroupBox()
         lay_tr = QVBoxLayout(grp_translate)
         lay_tr.setSpacing(6)
@@ -2272,7 +1820,7 @@ class DicteeSetupDialog(QDialog):
         self._build_translation_section(lay_tr, conf)
         layout.addWidget(grp_translate)
 
-        # -- Microphone section --
+        # -- Section microphone --
         grp_mic = QGroupBox(_("Microphone"))
         lay_mic = QVBoxLayout(grp_mic)
         lay_mic.setSpacing(6)
@@ -2280,7 +1828,7 @@ class DicteeSetupDialog(QDialog):
         self._build_mic_section(lay_mic, conf)
         layout.addWidget(grp_mic)
 
-        # -- Post-processing section --
+        # -- Section post-traitement --
         grp_postprocess = QGroupBox(_("Post-processing"))
         lay_pp = QVBoxLayout(grp_postprocess)
         lay_pp.setSpacing(6)
@@ -2288,7 +1836,7 @@ class DicteeSetupDialog(QDialog):
         self._build_postprocess_section(lay_pp, conf)
         layout.addWidget(grp_postprocess)
 
-        # -- Options section --
+        # -- Section options --
         grp_options = QGroupBox(_("Options"))
         lay_opt = QVBoxLayout(grp_options)
         lay_opt.setSpacing(6)
@@ -2298,7 +1846,7 @@ class DicteeSetupDialog(QDialog):
         lay_opt.addWidget(self.chk_clipboard)
         layout.addWidget(grp_options)
 
-        # -- Services section --
+        # -- Section services --
         grp_services = QGroupBox(_("Startup services"))
         lay_srv = QVBoxLayout(grp_services)
         lay_srv.setSpacing(6)
@@ -2315,7 +1863,7 @@ class DicteeSetupDialog(QDialog):
         scroll.setWidget(content)
         outer_layout.addWidget(scroll, 1)
 
-        # -- Buttons --
+        # -- Boutons --
         lay_buttons = QHBoxLayout()
         lay_buttons.setContentsMargins(20, 8, 20, 16)
 
@@ -2340,20 +1888,18 @@ class DicteeSetupDialog(QDialog):
 
         outer_layout.addLayout(lay_buttons)
 
-        # Mark _dirty as soon as any config widget changes
+        # Marquer _dirty dès qu'un widget de config change
         for w in content.findChildren(QComboBox):
             w.currentIndexChanged.connect(self._mark_dirty)
         for w in content.findChildren(QCheckBox):
             w.toggled.connect(self._mark_dirty)
 
         content_h = content.sizeHint().height()
-        buttons_h = (
-            lay_buttons.sizeHint().height() if hasattr(lay_buttons, "sizeHint") else 50
-        )
+        buttons_h = lay_buttons.sizeHint().height() if hasattr(lay_buttons, 'sizeHint') else 50
         self.setMaximumHeight(content_h + buttons_h + 10)
 
     def _on_launch_wizard(self):
-        """Close the dialog and restart in wizard mode."""
+        """Ferme le dialog et relance en mode wizard."""
         self.reject()
         exe = os.path.abspath(sys.argv[0])
         os.execv(sys.executable, [sys.executable, exe, "--wizard"])
@@ -2362,7 +1908,7 @@ class DicteeSetupDialog(QDialog):
 
     @staticmethod
     def _is_dark_theme():
-        """Detect if the current Qt theme is dark."""
+        """Détecte si le thème Qt courant est sombre."""
         app = QApplication.instance()
         if app:
             bg = app.palette().color(app.palette().ColorRole.Window)
@@ -2370,9 +1916,8 @@ class DicteeSetupDialog(QDialog):
         return True
 
     def _logo_pixmap(self, width):
-        """Return a QPixmap of the theme-appropriate logo at the requested width."""
+        """Retourne un QPixmap du logo adapté au thème, à la largeur demandée."""
         from PyQt6.QtCore import QByteArray
-
         if not ASSETS_DIR:
             return QPixmap()
         fname = "banner-dark.svg" if self._is_dark_theme() else "banner-light.svg"
@@ -2385,7 +1930,7 @@ class DicteeSetupDialog(QDialog):
         return pix.scaledToWidth(width, Qt.TransformationMode.SmoothTransformation)
 
     def _make_logo_header(self):
-        """Create a QLabel header with the banner logo (200px wide)."""
+        """Crée un QLabel header avec le logo banner (200px de large)."""
         lbl = QLabel()
         lbl.setPixmap(self._logo_pixmap(200))
         lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
@@ -2394,9 +1939,7 @@ class DicteeSetupDialog(QDialog):
 
     def _build_wizard_ui(self):
         conf = self.conf
-        self.setWindowTitle(
-            _("Voice dictation configuration") + " — " + _("Setup wizard")
-        )
+        self.setWindowTitle(_("Voice dictation configuration") + " — " + _("Setup wizard"))
         self.resize(700, 600)
 
         outer = QVBoxLayout(self)
@@ -2406,7 +1949,8 @@ class DicteeSetupDialog(QDialog):
         self.stack = QStackedWidget()
         outer.addWidget(self.stack, 1)
 
-        # Build 6 pages (page 0 = welcome/logo)        self._build_wizard_page0()
+        # Build 6 pages (page 0 = welcome/logo)
+        self._build_wizard_page0()
         self._build_wizard_page1(conf)
         self._build_wizard_page2(conf)
         self._build_wizard_page3(conf)
@@ -2439,19 +1983,13 @@ class DicteeSetupDialog(QDialog):
         if idx == 0:
             self.lbl_step.setText("")
         else:
-            self.lbl_step.setText(
-                _("Step {n} of {total}").format(n=idx, total=total - 1)
-            )
+            self.lbl_step.setText(_("Step {n} of {total}").format(n=idx, total=total - 1))
         if idx == total - 1:
             self.btn_next.setText(_("Finish"))
-            self.btn_next.setStyleSheet(
-                "font-weight: bold; background: #4a4; color: white; padding: 8px 20px; border-radius: 4px;"
-            )
+            self.btn_next.setStyleSheet("font-weight: bold; background: #4a4; color: white; padding: 8px 20px; border-radius: 4px;")
         elif idx == 0:
             self.btn_next.setText(_("Start configuration"))
-            self.btn_next.setStyleSheet(
-                "font-weight: bold; font-size: 15px; padding: 10px 28px;"
-            )
+            self.btn_next.setStyleSheet("font-weight: bold; font-size: 15px; padding: 10px 28px;")
         else:
             self.btn_next.setText(_("Next"))
             self.btn_next.setStyleSheet("")
@@ -2477,32 +2015,28 @@ class DicteeSetupDialog(QDialog):
             self.stack.setCurrentIndex(idx + 1)
             self._update_wizard_nav()
             if idx + 1 == self.stack.count() - 1:
-                # Save config and start services BEFORE checks
+                # Sauver la config et démarrer les services AVANT les checks
                 self._on_apply()
                 self._run_wizard_checks()
 
     def _validate_wizard_page(self, idx):
-        """Validate the current page before advancing. Returns True if OK."""
+        """Valide la page courante avant d'avancer. Retourne True si OK."""
         if idx == 1:
-            # ASR page: check that a model is installed for the selected backend
+            # Page ASR : vérifier qu'un modèle est installé pour le backend sélectionné
             asr = self._wizard_asr
             if asr == "parakeet":
                 for m in ASR_MODELS:
                     if m["required"] and not model_is_installed(m):
-                        QMessageBox.warning(
-                            self,
-                            _("Model required"),
-                            _("Please download the required model before continuing."),
-                        )
+                        QMessageBox.warning(self, _("Model required"),
+                            _("Please download the required model before continuing."))
                         return False
         return True
 
     # -- Project logos grid --
 
     def _build_project_logos(self):
-        """Grid of underlying project logos for the welcome page."""
+        """Grille de logos des projets sous-jacents pour la page d'accueil."""
         from PyQt6.QtCore import QByteArray
-
         if not ASSETS_DIR:
             return None
         logos_dir = os.path.join(ASSETS_DIR, "logos")
@@ -2527,7 +2061,7 @@ class DicteeSetupDialog(QDialog):
             if not os.path.isfile(svg_path):
                 continue
 
-            # Load the SVG
+            # Charger le SVG
             with open(svg_path, "rb") as f:
                 svg_data = f.read()
             img = QImage()
@@ -2535,7 +2069,7 @@ class DicteeSetupDialog(QDialog):
             pix = QPixmap.fromImage(img)
             pix = pix.scaledToWidth(64, Qt.TransformationMode.SmoothTransformation)
 
-            # Stacked widget: icon + name
+            # Widget empilé : icône + nom
             cell = QWidget()
             cell_lay = QVBoxLayout(cell)
             cell_lay.setSpacing(4)
@@ -2557,12 +2091,12 @@ class DicteeSetupDialog(QDialog):
                 col = 0
                 row += 1
 
-        # Center the bottom row (2 items across 3 columns)
+        # Centrer la rangée du bas (2 éléments sur 3 colonnes)
         if row == 1 and col <= 2:
             grid.setColumnStretch(0, 1)
             grid.setColumnStretch(2, 1)
 
-        # Wrapper to center the grid horizontally
+        # Wrapper pour centrer horizontalement la grille
         wrapper = QWidget()
         wrapper_lay = QHBoxLayout(wrapper)
         wrapper_lay.setContentsMargins(0, 0, 0, 0)
@@ -2581,12 +2115,10 @@ class DicteeSetupDialog(QDialog):
 
         lay.addStretch(2)
 
-        # Logo banner on the left (large)
+        # Logo banner à gauche (grand)
         lbl_logo = QLabel()
         lbl_logo.setPixmap(self._logo_pixmap(560))
-        lbl_logo.setAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
-        )
+        lbl_logo.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         lay.addWidget(lbl_logo)
 
         # Version
@@ -2597,7 +2129,7 @@ class DicteeSetupDialog(QDialog):
 
         lay.addSpacing(16)
 
-        # Grid of underlying project logos
+        # Grille de logos des projets sous-jacents
         logos_widget = self._build_project_logos()
         if logos_widget:
             lay.addWidget(logos_widget)
@@ -2607,20 +2139,14 @@ class DicteeSetupDialog(QDialog):
         # Tagline — headline + subtitle
         lbl_headline = QLabel(
             "<p style='font-size: 22px; font-weight: bold;'>"
-            + _("Speak freely, type instantly")
-            + "</p>"
-        )
+            + _("Speak freely, type instantly") + "</p>")
         lbl_headline.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(lbl_headline)
 
         lbl_sub = QLabel(
             "<p style='font-size: 17px;'>"
-            + _(
-                "100% local voice dictation for Linux with 25+ languages, "
-                "translation, and real-time visual feedback."
-            )
-            + "</p>"
-        )
+            + _("100% local voice dictation for Linux with 25+ languages, "
+                "translation, and real-time visual feedback.") + "</p>")
         lbl_sub.setWordWrap(True)
         lbl_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(lbl_sub)
@@ -2636,7 +2162,8 @@ class DicteeSetupDialog(QDialog):
         lay.setSpacing(12)
         lay.setContentsMargins(24, 0, 24, 16)
 
-        # Header logo compact        lay.addWidget(self._make_logo_header())
+        # Header logo compact
+        lay.addWidget(self._make_logo_header())
 
         lbl_asr = QLabel("<b>" + _("Choose a speech recognition engine:") + "</b>")
         lay.addWidget(lbl_asr)
@@ -2645,24 +2172,9 @@ class DicteeSetupDialog(QDialog):
         self._asr_cards = {}
 
         for backend_id, name, desc, size in [
-            (
-                "parakeet",
-                "Parakeet-TDT 0.6B",
-                _("25 languages, ~2.5 GB, ~0.8s") + " — " + _("recommended"),
-                "~2.5 GB",
-            ),
-            (
-                "vosk",
-                "Vosk",
-                _("9+ languages, ~50 MB, ~1.5s") + " — " + _("lightweight"),
-                "~50 MB",
-            ),
-            (
-                "whisper",
-                "faster-whisper",
-                _("99 languages, ~500 MB–3 GB, ~0.3s"),
-                "~0.5–3 GB",
-            ),
+            ("parakeet", "Parakeet-TDT 0.6B", _("25 languages, ~2.5 GB, ~0.8s") + " — " + _("recommended"), "~2.5 Go"),
+            ("vosk", "Vosk", _("9+ languages, ~50 MB, ~1.5s") + " — " + _("lightweight"), "~50 Mo"),
+            ("whisper", "faster-whisper", _("99 languages, ~500 MB–3 GB, ~0.3s"), "~0.5–3 Go"),
         ]:
             card = self._make_radio_card(name, desc, backend_id == self._wizard_asr)
             card.mousePressEvent = lambda e, bid=backend_id: self._select_asr_radio(bid)
@@ -2697,7 +2209,7 @@ class DicteeSetupDialog(QDialog):
         self.stack.addWidget(page)
 
     def _update_asr_sub_visibility(self):
-        asr = self._wizard_asr if hasattr(self, "_wizard_asr") else "parakeet"
+        asr = self._wizard_asr if hasattr(self, '_wizard_asr') else "parakeet"
         self.w_parakeet_options.setVisible(asr == "parakeet")
         self.w_vosk_options.setVisible(asr == "vosk")
         self.w_whisper_options.setVisible(asr == "whisper")
@@ -2707,7 +2219,7 @@ class DicteeSetupDialog(QDialog):
         for bid, card in self._asr_cards.items():
             card.setStyleSheet(self._card_style(bid == backend_id))
         self._update_asr_sub_visibility()
-        if hasattr(self, "combo_src"):
+        if hasattr(self, 'combo_src'):
             self._update_src_languages()
 
     # -- Wizard Page 2: Shortcuts --
@@ -2720,10 +2232,8 @@ class DicteeSetupDialog(QDialog):
 
         lay.addWidget(self._make_logo_header())
 
-        lbl = QLabel(
-            "<h2>" + _("Keyboard shortcuts") + "</h2>"
-            "<p>" + _("Configure the keyboard shortcuts for voice dictation.") + "</p>"
-        )
+        lbl = QLabel("<h2>" + _("Keyboard shortcuts") + "</h2>"
+                     "<p>" + _("Configure the keyboard shortcuts for voice dictation.") + "</p>")
         lbl.setWordWrap(True)
         lay.addWidget(lbl)
 
@@ -2742,10 +2252,8 @@ class DicteeSetupDialog(QDialog):
 
         lay.addWidget(self._make_logo_header())
 
-        lbl = QLabel(
-            "<h2>" + _("Translation") + "</h2>"
-            "<p>" + _("Configure the translation backend (optional).") + "</p>"
-        )
+        lbl = QLabel("<h2>" + _("Translation") + "</h2>"
+                     "<p>" + _("Configure the translation backend (optional).") + "</p>")
         lbl.setWordWrap(True)
         lay.addWidget(lbl)
 
@@ -2807,10 +2315,8 @@ class DicteeSetupDialog(QDialog):
         lay_srv.setContentsMargins(16, 16, 16, 12)
         self.chk_daemon = QCheckBox(_("Start transcription daemon at startup"))
         self.chk_tray = QCheckBox(_("Show notification area icon"))
-        # In wizard mode, check by default (first install)
-        self.chk_daemon.setChecked(
-            self._is_service_enabled("dictee") or self.wizard_mode
-        )
+        # Dans le wizard, cocher par défaut (première install)
+        self.chk_daemon.setChecked(self._is_service_enabled("dictee") or self.wizard_mode)
         self.chk_tray.setChecked(self._is_service_enabled("dictee-tray"))
         lay_srv.addWidget(self.chk_daemon)
         lay_srv.addWidget(self.chk_tray)
@@ -2836,10 +2342,8 @@ class DicteeSetupDialog(QDialog):
 
         lay.addWidget(self._make_logo_header())
 
-        lbl = QLabel(
-            "<h2>" + _("Test") + "</h2>"
-            "<p>" + _("Let's verify that everything works correctly.") + "</p>"
-        )
+        lbl = QLabel("<h2>" + _("Test") + "</h2>"
+                     "<p>" + _("Let's verify that everything works correctly.") + "</p>")
         lbl.setWordWrap(True)
         lay.addWidget(lbl)
 
@@ -2868,7 +2372,7 @@ class DicteeSetupDialog(QDialog):
             self._check_labels[check_id] = (lbl_icon, lbl_status)
         lay.addWidget(self.w_checks)
 
-        # Dictation test
+        # Test dictée
         grp_test = QGroupBox(_("Dictation test"))
         lay_test = QVBoxLayout(grp_test)
         lay_test.setSpacing(8)
@@ -2918,20 +2422,15 @@ class DicteeSetupDialog(QDialog):
 
     @staticmethod
     def _card_style(selected):
-        children = (
-            "QFrame#radioCard * { border: none; background: transparent; color: #eee; }"
-        )
+        children = "QFrame#radioCard * { border: none; background: transparent; color: #eee; }"
         if selected:
-            return (
-                children
-                + " QFrame#radioCard { border: 2px solid #5566ff; border-radius: 8px;"
-                " background: #252545; padding: 4px; }"
-            )
-        return (
-            children + " QFrame#radioCard { border: 1px solid #444; border-radius: 8px;"
-            " background: #1a1a2e; padding: 4px; }"
-            " QFrame#radioCard:hover { border: 1px solid #666; }"
-        )
+            return (children +
+                    " QFrame#radioCard { border: 2px solid #5566ff; border-radius: 8px;"
+                    " background: #252545; padding: 4px; }")
+        return (children +
+                " QFrame#radioCard { border: 1px solid #444; border-radius: 8px;"
+                " background: #1a1a2e; padding: 4px; }"
+                " QFrame#radioCard:hover { border: 1px solid #666; }")
 
     def _build_shortcut_section(self, lay_sc):
         """Builds the PTT keyboard shortcut widgets into the given layout."""
@@ -2940,12 +2439,8 @@ class DicteeSetupDialog(QDialog):
         lay_sc.addWidget(lbl_mode)
 
         self.cmb_ptt_mode = QComboBox()
-        self.cmb_ptt_mode.addItem(
-            _("Hold (push-to-talk) — hold key to record, release to transcribe"), "hold"
-        )
-        self.cmb_ptt_mode.addItem(
-            _("Toggle — press to start, press again to stop"), "toggle"
-        )
+        self.cmb_ptt_mode.addItem(_("Hold (push-to-talk) — hold key to record, release to transcribe"), "hold")
+        self.cmb_ptt_mode.addItem(_("Toggle — press to start, press again to stop"), "toggle")
         existing_mode = self.conf.get("DICTEE_PTT_MODE", "toggle")
         idx = self.cmb_ptt_mode.findData(existing_mode)
         if idx >= 0:
@@ -2954,15 +2449,14 @@ class DicteeSetupDialog(QDialog):
 
         lay_sc.addSpacing(8)
 
-        # Dictation key
+        # Touche dictée
         lbl_dictee = QLabel(_("Voice dictation key") + " :")
         lay_sc.addWidget(lbl_dictee)
         self.btn_capture = ShortcutButton()
         existing_key = int(self.conf.get("DICTEE_PTT_KEY", 67))
         if existing_key:
-            self.btn_capture.setText(
-                _("Key: {name}").format(name=linux_keycode_name(existing_key))
-            )
+            self.btn_capture.setText(_("Key: {name}").format(
+                name=linux_keycode_name(existing_key)))
             self._ptt_key = existing_key
         else:
             self._ptt_key = 67
@@ -2976,12 +2470,12 @@ class DicteeSetupDialog(QDialog):
 
         lay_sc.addSpacing(4)
 
-        # Translation key: modifier + same key or separate key
+        # Touche traduction : modificateur + même touche ou touche séparée
         lay_sc.addSpacing(4)
         lbl_translate = QLabel(_("Dictation + Translation") + " :")
         lay_sc.addWidget(lbl_translate)
 
-        # Choice: same key + modifier or separate key
+        # Choix : même touche + modificateur ou touche séparée
         self.cmb_translate_mode = QComboBox()
         self.cmb_translate_mode.addItem(_("Same key + Alt (e.g., Alt+F9)"), "same_alt")
         self.cmb_translate_mode.addItem(_("Same key + Ctrl"), "same_ctrl")
@@ -2989,7 +2483,7 @@ class DicteeSetupDialog(QDialog):
         self.cmb_translate_mode.addItem(_("Separate key"), "separate")
         self.cmb_translate_mode.addItem(_("Disabled"), "disabled")
 
-        # Load existing config
+        # Charger config existante
         existing_mod = self.conf.get("DICTEE_PTT_MOD_TRANSLATE", "")
         existing_key_tr = int(self.conf.get("DICTEE_PTT_KEY_TRANSLATE", 0))
         existing_key = int(self.conf.get("DICTEE_PTT_KEY", 67))
@@ -3009,75 +2503,21 @@ class DicteeSetupDialog(QDialog):
 
         lay_sc.addWidget(self.cmb_translate_mode)
 
-        # Separate key capture button (visible only if "separate")
+        # Bouton capture touche séparée (visible uniquement si "separate")
         self.btn_capture_translate = ShortcutButton()
         if existing_key_tr and existing_key_tr != existing_key:
-            self.btn_capture_translate.setText(
-                _("Key: {name}").format(name=linux_keycode_name(existing_key_tr))
-            )
+            self.btn_capture_translate.setText(_("Key: {name}").format(
+                name=linux_keycode_name(existing_key_tr)))
             self._ptt_key_translate = existing_key_tr
         else:
             self._ptt_key_translate = 0
             self.btn_capture_translate.setText(_("Click to capture a shortcut…"))
         self.btn_capture_translate.setVisible(
-            self.cmb_translate_mode.currentData() == "separate"
-        )
+            self.cmb_translate_mode.currentData() == "separate")
         lay_sc.addWidget(self.btn_capture_translate)
-        self.btn_capture_translate.shortcutCaptured.connect(
-            self._on_ptt_key_translate_captured
-        )
+        self.btn_capture_translate.shortcutCaptured.connect(self._on_ptt_key_translate_captured)
 
-        self.cmb_translate_mode.currentIndexChanged.connect(
-            self._on_translate_mode_changed
-        )
-
-        lay_sc.addSpacing(8)
-
-        # Touche transcrire+LLM
-        lbl_llm = QLabel(_("Dictation + LLM improvement") + " :")
-        lay_sc.addWidget(lbl_llm)
-        self.btn_capture_llm = ShortcutButton()
-        existing_key_llm = int(self.conf.get("DICTEE_PTT_KEY_LLM", 0))
-        if existing_key_llm:
-            self.btn_capture_llm.setText(
-                _("Key: {name}").format(name=linux_keycode_name(existing_key_llm))
-            )
-            self._ptt_key_llm = existing_key_llm
-        else:
-            self._ptt_key_llm = 0
-            self.btn_capture_llm.setText(_("Click to capture a shortcut…"))
-        lay_sc.addWidget(self.btn_capture_llm)
-        self.btn_capture_llm.shortcutCaptured.connect(self._on_ptt_key_llm_captured)
-        btn_clear_llm = QPushButton(_("Disable"))
-        btn_clear_llm.setFixedWidth(100)
-        btn_clear_llm.clicked.connect(self._on_ptt_key_llm_cleared)
-        lay_sc.addWidget(btn_clear_llm)
-
-        lay_sc.addSpacing(8)
-
-        # Touche transcrire+traduction+LLM
-        lbl_translate_llm = QLabel(
-            _("Dictation + Translation + LLM improvement") + " :"
-        )
-        lay_sc.addWidget(lbl_translate_llm)
-        self.btn_capture_translate_llm = ShortcutButton()
-        existing_key_tr_llm = int(self.conf.get("DICTEE_PTT_KEY_TRANSLATE_LLM", 0))
-        if existing_key_tr_llm:
-            self.btn_capture_translate_llm.setText(
-                _("Key: {name}").format(name=linux_keycode_name(existing_key_tr_llm))
-            )
-            self._ptt_key_translate_llm = existing_key_tr_llm
-        else:
-            self._ptt_key_translate_llm = 0
-            self.btn_capture_translate_llm.setText(_("Click to capture a shortcut…"))
-        lay_sc.addWidget(self.btn_capture_translate_llm)
-        self.btn_capture_translate_llm.shortcutCaptured.connect(
-            self._on_ptt_key_translate_llm_captured
-        )
-        btn_clear_translate_llm = QPushButton(_("Disable"))
-        btn_clear_translate_llm.setFixedWidth(100)
-        btn_clear_translate_llm.clicked.connect(self._on_ptt_key_translate_llm_cleared)
-        lay_sc.addWidget(btn_clear_translate_llm)
+        self.cmb_translate_mode.currentIndexChanged.connect(self._on_translate_mode_changed)
 
         lay_sc.addSpacing(8)
 
@@ -3086,12 +2526,9 @@ class DicteeSetupDialog(QDialog):
         if not in_input_group:
             row_input = QHBoxLayout()
             lbl_group = QLabel(
-                '<span style="color: orange;">⚠ '
-                + _(
-                    "Your user is not in the 'input' group (required for keyboard shortcuts)."
-                )
-                + "</span>"
-            )
+                '<span style="color: orange;">⚠ ' +
+                _("Your user is not in the 'input' group (required for keyboard shortcuts).") +
+                '</span>')
             lbl_group.setWordWrap(True)
             row_input.addWidget(lbl_group)
             btn_fix_input = QPushButton(_("Fix (requires password)"))
@@ -3104,19 +2541,13 @@ class DicteeSetupDialog(QDialog):
                 try:
                     result = subprocess.run(
                         ["pkexec", "usermod", "-aG", "input", user],
-                        capture_output=True,
-                        text=True,
-                        timeout=15,
-                    )
+                        capture_output=True, text=True, timeout=15)
                     if result.returncode == 0:
                         btn_fix_input.setVisible(False)
                         lbl_group.setText(
-                            '<span style="color: green;">✓ '
-                            + _(
-                                "User added to 'input' group. Log out and back in to activate."
-                            )
-                            + "</span>"
-                        )
+                            '<span style="color: green;">✓ ' +
+                            _("User added to 'input' group. Log out and back in to activate.") +
+                            '</span>')
                     else:
                         QMessageBox.critical(self, _("Error"), result.stderr.strip())
                 except Exception as e:
@@ -3143,16 +2574,11 @@ class DicteeSetupDialog(QDialog):
             required = _(" (required)") if model["required"] else ""
 
             lbl = QLabel()
-            icon = (
-                '<span style="color: green;">✓</span>'
-                if installed
+            icon = '<span style="color: green;">✓</span>' if installed \
                 else '<span style="color: orange;">⚠</span>'
-            )
             line2 = model["desc"] + (required if not installed else "")
-            lbl.setText(
-                f"{icon} {model['name']}<br>"
-                f'<span style="font-size: 9.5pt; color: gray;">{line2}</span>'
-            )
+            lbl.setText(f'{icon} {model["name"]}<br>'
+                        f'<span style="font-size: 9.5pt; color: gray;">{line2}</span>')
             lbl.setWordWrap(True)
             row.addWidget(lbl, 1)
 
@@ -3160,11 +2586,8 @@ class DicteeSetupDialog(QDialog):
             btn_info.setFixedSize(24, 24)
             btn_info.setToolTip(model["help"])
             btn_info.setStyleSheet("font-weight: bold; border-radius: 12px;")
-            btn_info.clicked.connect(
-                lambda checked, b=btn_info, m=model: QToolTip.showText(
-                    b.mapToGlobal(b.rect().bottomLeft()), m["help"], b
-                )
-            )
+            btn_info.clicked.connect(lambda checked, b=btn_info, m=model:
+                QToolTip.showText(b.mapToGlobal(b.rect().bottomLeft()), m["help"], b))
             row.addWidget(btn_info)
 
             btn = QPushButton(_("Download") if not installed else _("Installed"))
@@ -3185,12 +2608,7 @@ class DicteeSetupDialog(QDialog):
             progress.setVisible(False)
             lay_parakeet.addWidget(progress)
 
-            self._model_widgets[model["id"]] = {
-                "label": lbl,
-                "button": btn,
-                "progress": progress,
-                "model": model,
-            }
+            self._model_widgets[model["id"]] = {"label": lbl, "button": btn, "progress": progress, "model": model}
             btn.clicked.connect(lambda checked, m=model: self._on_model_download(m))
 
         parent_layout.addWidget(self.w_parakeet_options)
@@ -3212,9 +2630,7 @@ class DicteeSetupDialog(QDialog):
         else:
             self.btn_install_vosk = QPushButton(_("Install Vosk engine"))
             self.btn_install_vosk.setFixedWidth(150)
-            self.btn_install_vosk.clicked.connect(
-                lambda: self._install_venv("vosk", VOSK_VENV, "vosk")
-            )
+            self.btn_install_vosk.clicked.connect(lambda: self._install_venv("vosk", VOSK_VENV, "vosk"))
 
         lbl_vosk_lang = QLabel(_("Language:"))
         self.cmb_vosk_lang = QComboBox()
@@ -3224,9 +2640,8 @@ class DicteeSetupDialog(QDialog):
         if idx >= 0:
             self.cmb_vosk_lang.setCurrentIndex(idx)
         row_vosk.addWidget(lbl_vosk_lang)
-        self.cmb_vosk_lang.currentIndexChanged.connect(
-            lambda: (self._update_src_languages(), self._update_vosk_dl_button())
-        )
+        self.cmb_vosk_lang.currentIndexChanged.connect(lambda: (
+            self._update_src_languages(), self._update_vosk_dl_button()))
         row_vosk.addWidget(self.cmb_vosk_lang)
 
         self.btn_dl_vosk_model = QPushButton(_("Download model"))
@@ -3250,13 +2665,13 @@ class DicteeSetupDialog(QDialog):
     # -- Vosk model management --
 
     def _vosk_model_installed(self, lang_code):
-        """Check if the Vosk model for a language is downloaded."""
+        """Vérifie si le modèle Vosk pour une langue est téléchargé."""
         model_name = VOSK_MODELS.get(lang_code, "")
         model_dir = os.path.join(DICTEE_DATA_DIR, "vosk-models", model_name)
         return os.path.isdir(model_dir)
 
     def _refresh_vosk_lang_combo(self):
-        """Repopulate Vosk combo with ✓/✗ indicator per model."""
+        """Repeuple le combo Vosk avec indicateur ✓/✗ par modèle."""
         current = self.cmb_vosk_lang.currentData()
         self.cmb_vosk_lang.blockSignals(True)
         self.cmb_vosk_lang.clear()
@@ -3271,7 +2686,7 @@ class DicteeSetupDialog(QDialog):
                 self.cmb_vosk_lang.setCurrentIndex(idx)
 
     def _update_vosk_dl_button(self):
-        """Show/hide download button depending on whether the model is installed."""
+        """Affiche/masque le bouton télécharger selon si le modèle est installé."""
         code = self.cmb_vosk_lang.currentData()
         if code and self._vosk_model_installed(code):
             self.btn_dl_vosk_model.setVisible(False)
@@ -3281,7 +2696,7 @@ class DicteeSetupDialog(QDialog):
             self.btn_dl_vosk_model.setText(_("Download model"))
 
     def _on_vosk_model_download(self):
-        """Download the selected Vosk model."""
+        """Télécharge le modèle Vosk sélectionné."""
         code = self.cmb_vosk_lang.currentData()
         if not code or self._vosk_model_installed(code):
             return
@@ -3292,8 +2707,7 @@ class DicteeSetupDialog(QDialog):
 
         self._vosk_dl_thread = _VoskModelDownloadThread(model_name)
         self._vosk_dl_thread.progress.connect(
-            lambda text: self.btn_dl_vosk_model.setText(text)
-        )
+            lambda text: self.btn_dl_vosk_model.setText(text))
         self._vosk_dl_thread.finished.connect(self._on_vosk_model_download_finished)
         self._vosk_dl_thread.start()
 
@@ -3324,9 +2738,7 @@ class DicteeSetupDialog(QDialog):
         else:
             self.btn_install_whisper = QPushButton(_("Install Whisper engine"))
             self.btn_install_whisper.setFixedWidth(150)
-            self.btn_install_whisper.clicked.connect(
-                lambda: self._install_venv("whisper", WHISPER_VENV, "faster-whisper")
-            )
+            self.btn_install_whisper.clicked.connect(lambda: self._install_venv("whisper", WHISPER_VENV, "faster-whisper"))
 
         lbl_wh_model = QLabel(_("Model:"))
         self.cmb_whisper_model = QComboBox()
@@ -3339,9 +2751,7 @@ class DicteeSetupDialog(QDialog):
         lbl_wh_lang = QLabel(_("Language:"))
         self.txt_whisper_lang = QComboBox()
         self.txt_whisper_lang.setEditable(True)
-        self.txt_whisper_lang.addItems(
-            ["", "fr", "en", "es", "de", "it", "pt", "ru", "zh", "ja", "ko", "ar"]
-        )
+        self.txt_whisper_lang.addItems(["", "fr", "en", "es", "de", "it", "pt", "ru", "zh", "ja", "ko", "ar"])
         cur_wl = self.conf.get("DICTEE_WHISPER_LANG", "")
         self.txt_whisper_lang.setCurrentText(cur_wl)
         lbl_auto = QLabel(_("(empty = auto-detect)"))
@@ -3383,11 +2793,9 @@ class DicteeSetupDialog(QDialog):
         # Avertissement GNOME / compositors sans wlr-layer-shell
         self.lbl_anim_warn = QLabel(
             '<span style="color: orange;">⚠ '
-            + _(
-                "animation-speech requires a Wayland compositor with layer-shell support "
-                "(KDE, Sway, Hyprland…). It does not work on GNOME."
-            )
-            + "</span>"
+            + _("animation-speech requires a Wayland compositor with layer-shell support "
+                "(KDE, Sway, Hyprland…). It does not work on GNOME.")
+            + '</span>'
         )
         self.lbl_anim_warn.setWordWrap(True)
         self.lbl_anim_warn.setVisible(self.de_type == "gnome")
@@ -3422,14 +2830,10 @@ class DicteeSetupDialog(QDialog):
         btn_help_tr = QPushButton("?")
         btn_help_tr.setFixedSize(22, 22)
         btn_help_tr.setToolTip(
-            _("How to translate:")
-            + "\n\n"
-            + _("• Keyboard shortcut: configure above (Dictation + Translation)")
-            + "\n"
-            + _("• Plasmoid: long press or translation button")
-            + "\n"
-            + _("• CLI: dictee --translate")
-            + "\n"
+            _("How to translate:") + "\n\n"
+            + _("• Keyboard shortcut: configure above (Dictation + Translation)") + "\n"
+            + _("• Plasmoid: long press or translation button") + "\n"
+            + _("• CLI: dictee --translate") + "\n"
             + _("• Direct: transcribe-client | trans -b :en")
         )
         lay_tr_title.addWidget(btn_help_tr)
@@ -3464,22 +2868,14 @@ class DicteeSetupDialog(QDialog):
         self.cmb_trans_backend = QComboBox()
         # Local-first order in wizard
         if self.wizard_mode:
-            self.cmb_trans_backend.addItem(
-                _("LibreTranslate (local)"), "libretranslate"
-            )
+            self.cmb_trans_backend.addItem(_("LibreTranslate (local)"), "libretranslate")
             self.cmb_trans_backend.addItem(_("ollama (local)"), "ollama")
-            self.cmb_trans_backend.addItem(
-                _("Google Translate (cloud)"), "trans:google"
-            )
+            self.cmb_trans_backend.addItem(_("Google Translate (cloud)"), "trans:google")
             self.cmb_trans_backend.addItem(_("Bing (cloud)"), "trans:bing")
         else:
-            self.cmb_trans_backend.addItem(
-                _("Google Translate (cloud)"), "trans:google"
-            )
+            self.cmb_trans_backend.addItem(_("Google Translate (cloud)"), "trans:google")
             self.cmb_trans_backend.addItem(_("Bing (cloud)"), "trans:bing")
-            self.cmb_trans_backend.addItem(
-                _("LibreTranslate (local)"), "libretranslate"
-            )
+            self.cmb_trans_backend.addItem(_("LibreTranslate (local)"), "libretranslate")
             self.cmb_trans_backend.addItem(_("ollama (local)"), "ollama")
         lay_tr.addWidget(self.cmb_trans_backend)
 
@@ -3508,14 +2904,11 @@ class DicteeSetupDialog(QDialog):
         lay_lt.addLayout(lay_lt_port)
 
         # -- Langues LibreTranslate --
-        lbl_lt_langs = QLabel(
-            "<small>" + _("Languages to load in LibreTranslate:") + "</small>"
-        )
+        lbl_lt_langs = QLabel("<small>" + _("Languages to load in LibreTranslate:") + "</small>")
         lay_lt.addWidget(lbl_lt_langs)
 
         saved_lt_langs = set(
-            conf.get("DICTEE_LIBRETRANSLATE_LANGS", "de,en,es,fr").split(",")
-        )
+            conf.get("DICTEE_LIBRETRANSLATE_LANGS", "de,en,es,fr").split(","))
         # Toujours inclure source et cible
         saved_lt_langs.add(conf.get("DICTEE_LANG_SOURCE", self._system_lang()))
         saved_lt_langs.add(conf.get("DICTEE_LANG_TARGET", "en"))
@@ -3597,8 +2990,7 @@ class DicteeSetupDialog(QDialog):
         self.chk_ollama_cpu = QCheckBox(_("Force CPU (OLLAMA_NUM_GPU=0)"))
         self.chk_ollama_cpu.setChecked(conf.get("OLLAMA_NUM_GPU") == "0")
         self.chk_ollama_cpu.setToolTip(
-            _("Use CPU instead of GPU for ollama inference (slower but no VRAM needed)")
-        )
+            _("Use CPU instead of GPU for ollama inference (slower but no VRAM needed)"))
         lay_ollama.addWidget(self.chk_ollama_cpu)
 
         self.btn_ollama_pull = QPushButton(_("Download model"))
@@ -3613,9 +3005,7 @@ class DicteeSetupDialog(QDialog):
 
         lay_tr.addWidget(self.ollama_widget)
 
-        self.combo_ollama_model.currentIndexChanged.connect(
-            self._on_ollama_model_changed
-        )
+        self.combo_ollama_model.currentIndexChanged.connect(self._on_ollama_model_changed)
         self._ollama_pull_thread = None
 
         # Restore saved backend
@@ -3643,18 +3033,13 @@ class DicteeSetupDialog(QDialog):
             if data == "ollama":
                 self._check_ollama_status()
             self._update_tgt_languages()
-
-        self.cmb_trans_backend.currentIndexChanged.connect(
-            lambda: _on_trans_backend_changed()
-        )
-
-        # Refresh LibreTranslate status and checkboxes when language changes
+        self.cmb_trans_backend.currentIndexChanged.connect(lambda: _on_trans_backend_changed())
+        # Rafraîchir le statut et checkboxes LibreTranslate quand on change la langue
         def _on_lang_changed():
             if self.cmb_trans_backend.currentData() == "libretranslate":
                 self._update_lt_lang_checks()
                 self._on_lt_langs_changed()
                 self._check_lt_status()
-
         self.combo_src.currentIndexChanged.connect(_on_lang_changed)
         self.combo_tgt.currentIndexChanged.connect(_on_lang_changed)
         self._update_lt_lang_checks()
@@ -3671,22 +3056,18 @@ class DicteeSetupDialog(QDialog):
         dict_path = _os.path.join(XDG_CFG, "dictee", "dictionary.conf")
         continuation_path = _os.path.join(XDG_CFG, "dictee", "continuation.conf")
 
-        # Enable checkbox
-        self.chk_postprocess = QCheckBox(
-            _("Enable post-processing (regex rules + dictionary)")
-        )
-        self.chk_postprocess.setChecked(
-            conf.get("DICTEE_POSTPROCESS", "true") == "true"
-        )
+        # Checkbox activer
+        self.chk_postprocess = QCheckBox(_("Enable post-processing (regex rules + dictionary)"))
+        self.chk_postprocess.setChecked(conf.get("DICTEE_POSTPROCESS", "true") == "true")
         lay.addWidget(self.chk_postprocess)
 
-        # Container for all PP content (greyed out if disabled)
+        # Conteneur pour tout le contenu PP (grisé si désactivé)
         self._pp_content = QWidget()
         pp_lay = QVBoxLayout(self._pp_content)
         pp_lay.setContentsMargins(0, 0, 0, 0)
         pp_lay.setSpacing(6)
 
-        # --- Pipeline toggles — general ---
+        # --- Pipeline toggles — général ---
         grid_gen = QGridLayout()
         grid_gen.setContentsMargins(20, 0, 0, 0)
 
@@ -3695,20 +3076,16 @@ class DicteeSetupDialog(QDialog):
         grid_gen.addWidget(self.chk_pp_numbers, 0, 0)
 
         self.chk_pp_capitalization = QCheckBox(_("Auto-capitalization"))
-        self.chk_pp_capitalization.setChecked(
-            conf.get("DICTEE_PP_CAPITALIZATION", "true") == "true"
-        )
+        self.chk_pp_capitalization.setChecked(conf.get("DICTEE_PP_CAPITALIZATION", "true") == "true")
         grid_gen.addWidget(self.chk_pp_capitalization, 0, 1)
 
         self.chk_pp_fuzzy_dict = QCheckBox(_("Fuzzy dictionary matching"))
-        self.chk_pp_fuzzy_dict.setChecked(
-            conf.get("DICTEE_PP_FUZZY_DICT", "true") == "true"
-        )
+        self.chk_pp_fuzzy_dict.setChecked(conf.get("DICTEE_PP_FUZZY_DICT", "true") == "true")
         grid_gen.addWidget(self.chk_pp_fuzzy_dict, 1, 0)
 
         pp_lay.addLayout(grid_gen)
 
-        # --- Pipeline toggles — language-specific ---
+        # --- Pipeline toggles — spécifiques à la langue ---
         lang_src = conf.get("DICTEE_LANG_SOURCE", "fr")
         is_fr = lang_src == "fr"
 
@@ -3721,16 +3098,12 @@ class DicteeSetupDialog(QDialog):
         grid_lang.setContentsMargins(20, 0, 0, 0)
 
         self.chk_pp_elisions = QCheckBox(_("Elisions"))
-        self.chk_pp_elisions.setChecked(
-            conf.get("DICTEE_PP_ELISIONS", "true") == "true"
-        )
+        self.chk_pp_elisions.setChecked(conf.get("DICTEE_PP_ELISIONS", "true") == "true")
         self.chk_pp_elisions.setVisible(is_fr)
         grid_lang.addWidget(self.chk_pp_elisions, 0, 0)
 
         self.chk_pp_typography = QCheckBox(_("Typography (non-breaking spaces)"))
-        self.chk_pp_typography.setChecked(
-            conf.get("DICTEE_PP_TYPOGRAPHY", "true") == "true"
-        )
+        self.chk_pp_typography.setChecked(conf.get("DICTEE_PP_TYPOGRAPHY", "true") == "true")
         self.chk_pp_typography.setVisible(is_fr)
         grid_lang.addWidget(self.chk_pp_typography, 0, 1)
 
@@ -3774,61 +3147,41 @@ class DicteeSetupDialog(QDialog):
             btns.addWidget(btn_save)
             dl.addLayout(btns)
             btn_cancel.clicked.connect(dlg.reject)
-
             def _save():
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(editor.toPlainText())
                 dlg.accept()
-
             btn_save.clicked.connect(_save)
             dlg.exec()
 
-        btn_rules.clicked.connect(
-            lambda: _edit_file(
-                rules_path,
-                _("Regex rules"),
-                "# [lang] /PATTERN/REPLACEMENT/FLAGS\n# Example:\n# [fr] /point à la ligne/\\n/ig\n",
-            )
-        )
-        btn_dict.clicked.connect(
-            lambda: _edit_file(
-                dict_path,
-                _("Personal dictionary"),
-                "# [lang] WORD=REPLACEMENT\n# Example:\n# [*] linux=Linux\n",
-            )
-        )
-        btn_continuation.clicked.connect(
-            lambda: _edit_file(
-                continuation_path,
-                _("Continuation words"),
-                "# Continuation words — supplements the system defaults\n"
-                "# Format: [lang] word1 word2 word3 ...\n"
-                "# Example:\n"
-                "# [fr] monsieur madame\n",
-            )
-        )
+        btn_rules.clicked.connect(lambda: _edit_file(
+            rules_path, _("Regex rules"),
+            "# [lang] /PATTERN/REPLACEMENT/FLAGS\n# Example:\n# [fr] /point à la ligne/\\n/ig\n"))
+        btn_dict.clicked.connect(lambda: _edit_file(
+            dict_path, _("Personal dictionary"),
+            "# [lang] WORD=REPLACEMENT\n# Example:\n# [*] linux=Linux\n"))
+        btn_continuation.clicked.connect(lambda: _edit_file(
+            continuation_path, _("Continuation words"),
+            "# Continuation words — supplements the system defaults\n"
+            "# Format: [lang] word1 word2 word3 ...\n"
+            "# Example:\n"
+            "# [fr] monsieur madame\n"))
 
         def _restore_defaults():
             for candidate in [
-                _os.path.join(
-                    _os.path.dirname(_os.path.abspath(__file__)), "rules.conf.default"
-                ),
+                _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "rules.conf.default"),
                 "/usr/share/dictee/rules.conf.default",
             ]:
                 if _os.path.isfile(candidate):
                     import shutil
-
                     _os.makedirs(_os.path.dirname(rules_path), exist_ok=True)
                     shutil.copy2(candidate, rules_path)
-                    QMessageBox.information(
-                        self, "dictee", _("Default rules restored.")
-                    )
+                    QMessageBox.information(self, "dictee", _("Default rules restored."))
                     return
             QMessageBox.warning(self, "dictee", _("Default rules file not found."))
-
         btn_defaults.clicked.connect(_restore_defaults)
 
-        # Separator
+        # Séparateur
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
         sep.setFrameShadow(QFrame.Shadow.Sunken)
@@ -3848,19 +3201,11 @@ class DicteeSetupDialog(QDialog):
         saved_model = conf.get("DICTEE_LLM_MODEL", "gemma3:4b")
         self._llm_api_keys = {
             "OPENAI_API_KEY": self._sanitize_env_value(conf.get("OPENAI_API_KEY", "")),
-            "OPENROUTER_API_KEY": self._sanitize_env_value(
-                conf.get("OPENROUTER_API_KEY", "")
-            ),
+            "OPENROUTER_API_KEY": self._sanitize_env_value(conf.get("OPENROUTER_API_KEY", "")),
             "GOOGLE_API_KEY": self._sanitize_env_value(
-                conf.get("GOOGLE_API_KEY", conf.get("GEMINI_API_KEY", ""))
-            ),
-            "ANTHROPIC_API_KEY": self._sanitize_env_value(
-                conf.get("ANTHROPIC_API_KEY", "")
-            ),
+                conf.get("GOOGLE_API_KEY", conf.get("GEMINI_API_KEY", ""))),
+            "ANTHROPIC_API_KEY": self._sanitize_env_value(conf.get("ANTHROPIC_API_KEY", "")),
             "GROQ_API_KEY": self._sanitize_env_value(conf.get("GROQ_API_KEY", "")),
-            "DICTEE_LLM_OPENAI_COMPAT_KEY": self._sanitize_env_value(
-                conf.get("DICTEE_LLM_OPENAI_COMPAT_KEY", "")
-            ),
         }
         self._llm_active_provider = saved_provider
 
@@ -3877,25 +3222,15 @@ class DicteeSetupDialog(QDialog):
         self.lbl_llm_api_key = QLabel(_("API key:"))
         self.txt_llm_api_key = QLineEdit()
         self.txt_llm_api_key.setEchoMode(QLineEdit.EchoMode.Password)
-        self.txt_llm_api_key.setPlaceholderText(
-            _("Optional: stored in dictee.conf if set here")
-        )
+        self.txt_llm_api_key.setPlaceholderText(_("Optional: stored in dictee.conf if set here"))
         llm_lay.addRow(self.lbl_llm_api_key, self.txt_llm_api_key)
-
-        self.lbl_llm_compat_url = QLabel(_("Base URL:"))
-        self.txt_llm_compat_url = QLineEdit()
-        self.txt_llm_compat_url.setPlaceholderText("https://api.z.ai/api/paas/v4")
-        saved_compat_url = conf.get("DICTEE_LLM_OPENAI_COMPAT_URL", "")
-        self.txt_llm_compat_url.setText(saved_compat_url)
-        llm_lay.addRow(self.lbl_llm_compat_url, self.txt_llm_compat_url)
 
         self.chk_llm_cpu = QCheckBox(_("Force CPU (free GPU VRAM)"))
         self.chk_llm_cpu.setChecked(conf.get("DICTEE_LLM_CPU", "false") == "true")
         llm_lay.addRow("", self.chk_llm_cpu)
 
         self.lbl_llm_vram = QLabel(
-            "<i>" + _("~2 GB VRAM with Ministral 3B (+ ~2.5 GB Parakeet)") + "</i>"
-        )
+            "<i>" + _("~2 GB VRAM with Ministral 3B (+ ~2.5 GB Parakeet)") + "</i>")
         self.lbl_llm_vram.setStyleSheet("font-size: 11px; opacity: 0.6;")
         llm_lay.addRow("", self.lbl_llm_vram)
 
@@ -3977,32 +3312,21 @@ class DicteeSetupDialog(QDialog):
             if ok:
                 lbl_icon.setText('<span style="color: green;">✓</span>')
                 if check_id == "shortcut":
-                    ptt_k = getattr(
-                        self, "_ptt_key", int(self.conf.get("DICTEE_PTT_KEY", 67))
-                    )
-                    lbl_status.setText(
-                        '<span style="color: green;">'
-                        + linux_keycode_name(ptt_k)
-                        + "</span>"
-                    )
+                    ptt_k = getattr(self, '_ptt_key', int(self.conf.get("DICTEE_PTT_KEY", 67)))
+                    lbl_status.setText('<span style="color: green;">'
+                                      + linux_keycode_name(ptt_k) + '</span>')
                 else:
-                    lbl_status.setText(
-                        '<span style="color: green;">' + _("OK") + "</span>"
-                    )
+                    lbl_status.setText('<span style="color: green;">' + _("OK") + '</span>')
             else:
                 lbl_icon.setText('<span style="color: red;">✗</span>')
-                lbl_status.setText(
-                    '<span style="color: red;">' + _("Not found") + "</span>"
-                )
+                lbl_status.setText('<span style="color: red;">' + _("Not found") + '</span>')
                 all_ok = False
 
         if all_ok:
-            ptt_key = getattr(
-                self, "_ptt_key", int(self.conf.get("DICTEE_PTT_KEY", 67))
-            )
+            ptt_key = getattr(self, '_ptt_key', int(self.conf.get("DICTEE_PTT_KEY", 67)))
             shortcut = linux_keycode_name(ptt_key)
             ptt_mode = ""
-            if hasattr(self, "cmb_ptt_mode"):
+            if hasattr(self, 'cmb_ptt_mode'):
                 ptt_mode = self.cmb_ptt_mode.currentData()
             else:
                 ptt_mode = self.conf.get("DICTEE_PTT_MODE", "toggle")
@@ -4010,31 +3334,22 @@ class DicteeSetupDialog(QDialog):
             self.lbl_final.setText(
                 '<div style="background: #1e2e1e; padding: 12px; border-radius: 8px;">'
                 '<span style="color: #afa; font-size: 14pt; font-weight: bold;">'
-                + _("Everything is ready!")
-                + "</span><br>"
+                + _("Everything is ready!") + '</span><br>'
                 '<span style="color: #8a8;">'
                 + _("Press {key} anytime to dictate.").format(key=shortcut)
-                + f" ({mode_label})"
-                + "</span></div>"
+                + f' ({mode_label})'
+                + '</span></div>'
             )
 
     def _check_daemon_active(self):
-        asr = self._wizard_asr if hasattr(self, "_wizard_asr") else "parakeet"
-        svc = {
-            "parakeet": "dictee",
-            "vosk": "dictee-vosk",
-            "whisper": "dictee-whisper",
-        }.get(asr, "dictee")
-        # The daemon may take a few seconds to start (model loading)
+        asr = self._wizard_asr if hasattr(self, '_wizard_asr') else "parakeet"
+        svc = {"parakeet": "dictee", "vosk": "dictee-vosk", "whisper": "dictee-whisper"}.get(asr, "dictee")
+        # Le daemon peut mettre quelques secondes à démarrer (chargement modèle)
         import time
-
         for _ in range(10):
             try:
-                r = subprocess.run(
-                    ["systemctl", "--user", "is-active", svc],
-                    capture_output=True,
-                    text=True,
-                )
+                r = subprocess.run(["systemctl", "--user", "is-active", svc],
+                                   capture_output=True, text=True)
                 if r.stdout.strip() == "active":
                     return True
             except (FileNotFoundError, OSError):
@@ -4043,7 +3358,7 @@ class DicteeSetupDialog(QDialog):
         return False
 
     def _check_model_installed_fn(self):
-        asr = self._wizard_asr if hasattr(self, "_wizard_asr") else "parakeet"
+        asr = self._wizard_asr if hasattr(self, '_wizard_asr') else "parakeet"
         if asr == "parakeet":
             return all(model_is_installed(m) for m in ASR_MODELS if m["required"])
         elif asr == "vosk":
@@ -4053,11 +3368,11 @@ class DicteeSetupDialog(QDialog):
         return True
 
     def _check_shortcut_registered(self):
-        """Check if a PTT key is configured (wizard or dictee.conf)."""
-        # Wizard in progress: we have _ptt_key set
-        if hasattr(self, "_ptt_key") and self._ptt_key:
+        """Vérifie qu'une touche PTT est configurée (wizard ou dictee.conf)."""
+        # Wizard en cours : on a _ptt_key défini
+        if hasattr(self, '_ptt_key') and self._ptt_key:
             return True
-        # Otherwise, check existing config
+        # Sinon, vérifier la config existante
         key = self.conf.get("DICTEE_PTT_KEY", "")
         return bool(key and int(key) > 0)
 
@@ -4066,7 +3381,7 @@ class DicteeSetupDialog(QDialog):
     def _on_volume_changed(self, value):
         self.lbl_vol_pct.setText(f"{value}%")
         # Debounce: apply volume after 50ms of inactivity
-        if not hasattr(self, "_vol_timer"):
+        if not hasattr(self, '_vol_timer'):
             self._vol_timer = QTimer(self)
             self._vol_timer.setSingleShot(True)
             self._vol_timer.timeout.connect(self._apply_volume)
@@ -4077,28 +3392,13 @@ class DicteeSetupDialog(QDialog):
         vol = value / 100.0
         src = self.cmb_audio_source.currentData()
         if shutil.which("wpctl"):
-            subprocess.Popen(
-                [
-                    "wpctl",
-                    "set-volume",
-                    str(src) if src else "@DEFAULT_SOURCE@",
-                    f"{vol:.2f}",
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            subprocess.Popen(["wpctl", "set-volume", str(src) if src else "@DEFAULT_SOURCE@",
+                              f"{vol:.2f}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif shutil.which("pactl"):
             pct = f"{value}%"
-            subprocess.Popen(
-                [
-                    "pactl",
-                    "set-source-volume",
-                    str(src) if src else "@DEFAULT_SOURCE@",
-                    pct,
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            subprocess.Popen(["pactl", "set-source-volume",
+                              str(src) if src else "@DEFAULT_SOURCE@", pct],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def _on_audio_source_changed(self, _index):
         """Restart audio level thread on new source."""
@@ -4132,22 +3432,16 @@ class DicteeSetupDialog(QDialog):
             self._test_thread.stop()
             self.btn_test_dictee.setText("🎤 " + _("Test dictation"))
             self.btn_test_dictee.setEnabled(True)
-            if hasattr(self, "_test_timer"):
+            if hasattr(self, '_test_timer'):
                 self._test_timer.stop()
             return
         self.txt_test_result.clear()
         self._test_countdown = 5
-        self.btn_test_dictee.setText(
-            "⏹ " + _("Recording… {n}s").format(n=self._test_countdown)
-        )
+        self.btn_test_dictee.setText("⏹ " + _("Recording… {n}s").format(n=self._test_countdown))
         self._test_timer = QTimer(self)
         self._test_timer.timeout.connect(self._on_test_tick)
         self._test_timer.start(1000)
-        pp_enabled = (
-            self.chk_postprocess.isChecked()
-            if hasattr(self, "chk_postprocess")
-            else False
-        )
+        pp_enabled = self.chk_postprocess.isChecked() if hasattr(self, 'chk_postprocess') else False
         self._test_thread = TestDicteeThread(duration=5, postprocess=pp_enabled)
         self._test_thread.result.connect(self._on_test_result)
         self._test_thread.start()
@@ -4155,15 +3449,13 @@ class DicteeSetupDialog(QDialog):
     def _on_test_tick(self):
         self._test_countdown -= 1
         if self._test_countdown > 0:
-            self.btn_test_dictee.setText(
-                "⏹ " + _("Recording… {n}s").format(n=self._test_countdown)
-            )
+            self.btn_test_dictee.setText("⏹ " + _("Recording… {n}s").format(n=self._test_countdown))
         else:
             self.btn_test_dictee.setText("⏳ " + _("Transcribing…"))
             self._test_timer.stop()
 
     def _on_test_result(self, text):
-        if hasattr(self, "_test_timer"):
+        if hasattr(self, '_test_timer'):
             self._test_timer.stop()
         self.btn_test_dictee.setText("🎤 " + _("Test dictation"))
         self.txt_test_result.setPlainText(text)
@@ -4175,8 +3467,7 @@ class DicteeSetupDialog(QDialog):
         try:
             result = subprocess.run(
                 ["systemctl", "--user", "is-enabled", name],
-                capture_output=True,
-                text=True,
+                capture_output=True, text=True,
             )
             return result.stdout.strip() == "enabled"
         except (FileNotFoundError, subprocess.CalledProcessError):
@@ -4203,8 +3494,8 @@ class DicteeSetupDialog(QDialog):
     # -- Filtrage langues selon backend --
 
     def _filter_lang_combo(self, combo, allowed_codes):
-        """Repopulate a combo with only the allowed languages.
-        allowed_codes=None means all languages."""
+        """Repeuple un combo avec uniquement les langues autorisées.
+        allowed_codes=None signifie toutes les langues."""
         current = combo.currentData()
         combo.blockSignals(True)
         combo.clear()
@@ -4212,7 +3503,7 @@ class DicteeSetupDialog(QDialog):
             if allowed_codes is None or code in allowed_codes:
                 combo.addItem(f"{code} — {name}", code)
         combo.blockSignals(False)
-        # Restore previous selection if still available
+        # Restaurer la sélection précédente si toujours disponible
         idx = combo.findData(current)
         if idx >= 0:
             combo.setCurrentIndex(idx)
@@ -4220,15 +3511,15 @@ class DicteeSetupDialog(QDialog):
             combo.setCurrentIndex(0)
 
     def _update_src_languages(self):
-        """Filter source language based on the selected ASR backend."""
-        if self.wizard_mode and hasattr(self, "_wizard_asr"):
+        """Filtre la langue source selon le backend ASR sélectionné."""
+        if self.wizard_mode and hasattr(self, '_wizard_asr'):
             asr = self._wizard_asr
-        elif hasattr(self, "cmb_asr_backend"):
+        elif hasattr(self, 'cmb_asr_backend'):
             asr = self.cmb_asr_backend.currentData()
         else:
             asr = "parakeet"
-        if asr == "vosk" and hasattr(self, "cmb_vosk_lang"):
-            # Vosk = mono-language, only the language of the selected model
+        if asr == "vosk" and hasattr(self, 'cmb_vosk_lang'):
+            # Vosk = mono-langue, uniquement la langue du modèle sélectionné
             vosk_lang = self.cmb_vosk_lang.currentData()
             allowed = {vosk_lang} if vosk_lang else ASR_LANGUAGES.get("vosk")
         else:
@@ -4236,43 +3527,35 @@ class DicteeSetupDialog(QDialog):
         self._filter_lang_combo(self.combo_src, allowed)
 
     def _update_tgt_languages(self):
-        """Filter target language based on the selected translation backend."""
-        if not hasattr(self, "cmb_trans_backend"):
+        """Filtre la langue cible selon le backend de traduction sélectionné."""
+        if not hasattr(self, 'cmb_trans_backend'):
             return
         backend = self.cmb_trans_backend.currentData()
         if backend == "libretranslate":
-            # Languages installed in Docker
-            port = (
-                int(self.spin_lt_port.currentText())
-                if hasattr(self, "spin_lt_port")
-                else 5000
-            )
+            # Langues installées dans Docker
+            port = int(self.spin_lt_port.currentText()) if hasattr(self, 'spin_lt_port') else 5000
             avail = libretranslate_available_languages(port=port)
             allowed = set(avail) if avail else None
         else:
             allowed = TRANSLATE_LANGUAGES.get(backend)
         self._filter_lang_combo(self.combo_tgt, allowed)
 
-    # -- Shortcut capture --
+    # -- Capture raccourci --
 
     def _on_ptt_key_captured(self, seq):
         code = qt_key_to_linux_keycode(seq)
         if code:
             self._ptt_key = code
-            self.btn_capture.setText(
-                _("Key: {name}").format(name=linux_keycode_name(code))
-            )
+            self.btn_capture.setText(_("Key: {name}").format(name=linux_keycode_name(code)))
             self.btn_capture._changed = True
             self._dirty = True
             self._check_ptt_warning(code, self.lbl_ptt_warning)
         else:
             key_str = seq.toString() if seq else "?"
             self.lbl_ptt_warning.setText(
-                '<span style="color: red;">⚠ '
-                + _(
-                    "Key '{key}' is not supported. Use a function key (F1-F12)."
-                ).format(key=key_str)
-                + "</span>"
+                '<span style="color: red;">⚠ ' +
+                _("Key '{key}' is not supported. Use a function key (F1-F12).").format(key=key_str) +
+                '</span>'
             )
             self.lbl_ptt_warning.setVisible(True)
 
@@ -4280,20 +3563,17 @@ class DicteeSetupDialog(QDialog):
         code = qt_key_to_linux_keycode(seq)
         if code:
             self._ptt_key_translate = code
-            self.btn_capture_translate.setText(
-                _("Key: {name}").format(name=linux_keycode_name(code))
-            )
+            self.btn_capture_translate.setText(_("Key: {name}").format(name=linux_keycode_name(code)))
             self.btn_capture_translate._changed = True
             self._dirty = True
         else:
             key_str = seq.toString() if seq else "?"
             self.btn_capture_translate.setText(
-                _("Key '{key}' not supported").format(key=key_str)
-            )
+                _("Key '{key}' not supported").format(key=key_str))
 
     def _check_ptt_warning(self, code, lbl):
-        """Warn if the key may cause issues."""
-        # Dangerous keys: letters, digits, space, enter, tab
+        """Avertit si la touche risque de poser problème."""
+        # Touches dangereuses : lettres, chiffres, espace, enter, tab
         dangerous = {14, 15, 28, 57}  # backspace, tab, enter, space
         dangerous.update(range(2, 12))  # 1-0
         dangerous.update(range(16, 26))  # q-p
@@ -4301,19 +3581,17 @@ class DicteeSetupDialog(QDialog):
         dangerous.update(range(44, 51))  # z-m
         if code in dangerous:
             lbl.setText(
-                '<span style="color: orange;">⚠ '
-                + _(
-                    "This key is used for typing. Prefer a function key (F1-F12) "
-                    "or a special key (Home, End, Insert, etc.)."
-                )
-                + "</span>"
+                '<span style="color: orange;">⚠ ' +
+                _("This key is used for typing. Prefer a function key (F1-F12) "
+                  "or a special key (Home, End, Insert, etc.).") +
+                '</span>'
             )
             lbl.setVisible(True)
         elif code == 1:  # ESC
             lbl.setText(
-                '<span style="color: orange;">⚠ '
-                + _("Escape is used to cancel dictation. Choose another key.")
-                + "</span>"
+                '<span style="color: orange;">⚠ ' +
+                _("Escape is used to cancel dictation. Choose another key.") +
+                '</span>'
             )
             lbl.setVisible(True)
         else:
@@ -4322,46 +3600,6 @@ class DicteeSetupDialog(QDialog):
     def _on_translate_mode_changed(self, _idx):
         mode = self.cmb_translate_mode.currentData()
         self.btn_capture_translate.setVisible(mode == "separate")
-
-    def _on_ptt_key_llm_captured(self, seq):
-        code = qt_key_to_linux_keycode(seq)
-        if code:
-            self._ptt_key_llm = code
-            self.btn_capture_llm.setText(
-                _("Key: {name}").format(name=linux_keycode_name(code))
-            )
-            self.btn_capture_llm._changed = True
-            self._dirty = True
-        else:
-            key_str = seq.toString() if seq else "?"
-            self.btn_capture_llm.setText(
-                _("Key '{key}' not supported").format(key=key_str)
-            )
-
-    def _on_ptt_key_llm_cleared(self):
-        self._ptt_key_llm = 0
-        self.btn_capture_llm.setText(_("Click to capture a shortcut…"))
-        self._dirty = True
-
-    def _on_ptt_key_translate_llm_captured(self, seq):
-        code = qt_key_to_linux_keycode(seq)
-        if code:
-            self._ptt_key_translate_llm = code
-            self.btn_capture_translate_llm.setText(
-                _("Key: {name}").format(name=linux_keycode_name(code))
-            )
-            self.btn_capture_translate_llm._changed = True
-            self._dirty = True
-        else:
-            key_str = seq.toString() if seq else "?"
-            self.btn_capture_translate_llm.setText(
-                _("Key '{key}' not supported").format(key=key_str)
-            )
-
-    def _on_ptt_key_translate_llm_cleared(self):
-        self._ptt_key_translate_llm = 0
-        self.btn_capture_translate_llm.setText(_("Click to capture a shortcut…"))
-        self._dirty = True
 
     def _on_shortcut_captured(self, seq):
         """Legacy — redirige vers PTT."""
@@ -4380,28 +3618,19 @@ class DicteeSetupDialog(QDialog):
             try:
                 result = subprocess.run(
                     ["dpkg-query", "-W", "-f", "${Version}", "animation-speech"],
-                    capture_output=True,
-                    text=True,
+                    capture_output=True, text=True,
                 )
                 v = result.stdout.strip() if result.returncode == 0 else ""
                 if v:
-                    parts.append(
-                        '<span style="color: green;">'
-                        + _("animation-speech {version} installed").format(version=v)
-                        + "</span>"
-                    )
+                    parts.append('<span style="color: green;">' +
+                                 _("animation-speech {version} installed").format(version=v) +
+                                 '</span>')
                 else:
-                    parts.append(
-                        '<span style="color: green;">'
-                        + _("animation-speech installed")
-                        + "</span>"
-                    )
+                    parts.append('<span style="color: green;">' +
+                                 _("animation-speech installed") + '</span>')
             except FileNotFoundError:
-                parts.append(
-                    '<span style="color: green;">'
-                    + _("animation-speech installed")
-                    + "</span>"
-                )
+                parts.append('<span style="color: green;">' +
+                             _("animation-speech installed") + '</span>')
             self.btn_install_anim.setVisible(False)
         else:
             self.btn_install_anim.setVisible(True)
@@ -4409,16 +3638,11 @@ class DicteeSetupDialog(QDialog):
                 self.btn_install_anim.setEnabled(False)
 
         has_plasmoid = os.path.isdir(
-            os.path.expanduser(
-                "~/.local/share/plasma/plasmoids/com.github.rcspam.dictee"
-            )
+            os.path.expanduser("~/.local/share/plasma/plasmoids/com.github.rcspam.dictee")
         ) or os.path.isdir("/usr/share/plasma/plasmoids/com.github.rcspam.dictee")
         if has_plasmoid:
-            parts.append(
-                '<span style="color: green;">'
-                + _("Dictee plasmoid installed")
-                + "</span>"
-            )
+            parts.append('<span style="color: green;">' +
+                         _("Dictee plasmoid installed") + '</span>')
 
         if parts:
             self.lbl_anim_status.setText(" — ".join(parts))
@@ -4429,9 +3653,7 @@ class DicteeSetupDialog(QDialog):
         self.progress_anim.setVisible(True)
 
         self._install_thread = InstallThread()
-        self._install_thread.progress.connect(
-            lambda text: self.btn_install_anim.setText(text)
-        )
+        self._install_thread.progress.connect(lambda text: self.btn_install_anim.setText(text))
         self._install_thread.finished.connect(self._on_install_finished)
         self._install_thread.start()
 
@@ -4453,9 +3675,8 @@ class DicteeSetupDialog(QDialog):
     def _check_ollama_status(self):
         if not ollama_is_installed():
             self.lbl_ollama_status.setText(
-                '<span style="color: red;">⚠ '
-                + _("ollama is not installed")
-                + "</span><br>"
+                '<span style="color: red;">⚠ ' +
+                _("ollama is not installed") + '</span><br>'
                 '<small><a href="https://ollama.com">https://ollama.com</a></small>'
             )
             self.lbl_ollama_status.setOpenExternalLinks(True)
@@ -4475,30 +3696,25 @@ class DicteeSetupDialog(QDialog):
         warnings = []
         if sys_ram and sys_ram < min_ram:
             warnings.append(
-                '<span style="color: orange;">⚠ '
-                + _("RAM: {actual} GB / {required} GB recommended").format(
-                    actual=sys_ram, required=min_ram
-                )
-                + "</span>"
-            )
+                '<span style="color: orange;">⚠ ' +
+                _("RAM: {actual} GB / {required} GB recommended").format(
+                    actual=sys_ram, required=min_ram) +
+                '</span>')
         vram_insufficient = False
         if vram_total:
             if vram_free < min_vram:
                 vram_insufficient = True
                 warnings.append(
-                    '<span style="color: orange;">⚠ '
-                    + _(
-                        "VRAM free: {free} GB / {required} GB required (total: {total} GB)"
-                    ).format(free=vram_free, required=min_vram, total=vram_total)
-                    + "</span>"
-                )
+                    '<span style="color: orange;">⚠ ' +
+                    _("VRAM free: {free} GB / {required} GB required (total: {total} GB)").format(
+                        free=vram_free, required=min_vram, total=vram_total) +
+                    '</span>')
         else:
             vram_insufficient = True
             warnings.append(
-                "<small><i>"
-                + _("No GPU detected — ollama will use CPU (slower).")
-                + "</i></small>"
-            )
+                '<small><i>' +
+                _("No GPU detected — ollama will use CPU (slower).") +
+                '</i></small>')
 
         if vram_insufficient and not vram_total:
             self.chk_ollama_cpu.setChecked(True)
@@ -4509,18 +3725,16 @@ class DicteeSetupDialog(QDialog):
 
         if ollama_has_model(model):
             self.lbl_ollama_status.setText(
-                '<span style="color: green;">✓ '
-                + _("Model {model} ready").format(model=model)
-                + "</span>"
-                + hw_info
+                '<span style="color: green;">✓ ' +
+                _("Model {model} ready").format(model=model) + '</span>' +
+                hw_info
             )
             self.btn_ollama_pull.setVisible(False)
         else:
             self.lbl_ollama_status.setText(
-                '<span style="color: orange;">⚠ '
-                + _("Model {model} not downloaded").format(model=model)
-                + "</span>"
-                + hw_info
+                '<span style="color: orange;">⚠ ' +
+                _("Model {model} not downloaded").format(model=model) + '</span>' +
+                hw_info
             )
             self.btn_ollama_pull.setVisible(True)
             self.btn_ollama_pull.setText(_("Download model"))
@@ -4533,8 +3747,7 @@ class DicteeSetupDialog(QDialog):
 
         self._ollama_pull_thread = OllamaPullThread(model)
         self._ollama_pull_thread.progress.connect(
-            lambda text: self.btn_ollama_pull.setText(text)
-        )
+            lambda text: self.btn_ollama_pull.setText(text))
         self._ollama_pull_thread.finished.connect(self._on_ollama_pull_finished)
         self._ollama_pull_thread.start()
 
@@ -4557,11 +3770,9 @@ class DicteeSetupDialog(QDialog):
     def _check_lt_status(self):
         if not docker_is_installed():
             self.lbl_lt_status.setText(
-                '<span style="color: red;">⚠ '
-                + _("Docker is not installed")
-                + "</span><br>"
-                "<small>sudo apt install docker.io</small>"
-            )
+                '<span style="color: red;">⚠ ' +
+                _("Docker is not installed") + '</span><br>'
+                '<small>sudo apt install docker.io</small>')
             self.btn_lt_pull.setVisible(False)
             self.btn_lt_start.setVisible(False)
             self.btn_lt_stop.setVisible(False)
@@ -4569,15 +3780,11 @@ class DicteeSetupDialog(QDialog):
 
         if not docker_is_accessible():
             self.lbl_lt_status.setText(
-                '<span style="color: red;">⚠ '
-                + _("Docker permission denied")
-                + "</span>"
-            )
+                '<span style="color: red;">⚠ ' +
+                _("Docker permission denied") + '</span>')
             # Bouton ajouter au groupe docker
-            if not hasattr(self, "_btn_fix_docker_group"):
-                self._btn_fix_docker_group = QPushButton(
-                    _("Fix permissions (requires password)")
-                )
+            if not hasattr(self, '_btn_fix_docker_group'):
+                self._btn_fix_docker_group = QPushButton(_("Fix permissions (requires password)"))
                 self._btn_fix_docker_group.setFixedWidth(280)
                 self._btn_fix_docker_group.clicked.connect(self._on_fix_docker_group)
                 self.lt_widget.layout().addWidget(self._btn_fix_docker_group)
@@ -4586,14 +3793,13 @@ class DicteeSetupDialog(QDialog):
             self.btn_lt_start.setVisible(False)
             self.btn_lt_stop.setVisible(False)
             return
-        if hasattr(self, "_btn_fix_docker_group"):
+        if hasattr(self, '_btn_fix_docker_group'):
             self._btn_fix_docker_group.setVisible(False)
 
         if not docker_has_image():
             self.lbl_lt_status.setText(
-                '<span style="color: orange;">⚠ '
-                + _("Docker image not downloaded (~2 GB)")
-                + "</span>"
+                '<span style="color: orange;">⚠ ' +
+                _("Docker image not downloaded (~2 GB)") + '</span>'
             )
             self.btn_lt_pull.setVisible(True)
             self.btn_lt_pull.setEnabled(True)
@@ -4603,20 +3809,16 @@ class DicteeSetupDialog(QDialog):
 
         if docker_container_running():
             port = self.spin_lt_port.currentText()
-            # Container size (image + model data)
+            # Taille du conteneur (image + données modèles)
             size_info = _docker_container_size()
             size_str = f" — {size_info}" if size_info else ""
             status_html = (
-                '<span style="color: green;">✓ '
-                + _("LibreTranslate running on port {port}").format(port=port)
-                + "</span>"
-                + (
-                    '<small style="color: #888;"> ' + size_str + "</small>"
-                    if size_str
-                    else ""
-                )
+                '<span style="color: green;">✓ ' +
+                _("LibreTranslate running on port {port}").format(port=port) +
+                '</span>' +
+                ('<small style="color: #888;"> ' + size_str + '</small>' if size_str else '')
             )
-            # Check that source/target languages are available
+            # Vérifier que les langues source/cible sont disponibles
             avail = libretranslate_available_languages(port=int(port))
             if avail:
                 src = self.combo_src.currentData()
@@ -4628,15 +3830,13 @@ class DicteeSetupDialog(QDialog):
                     missing.append(tgt)
                 if missing:
                     status_html += (
-                        '<br><span style="color: orange;">⚠ '
-                        + _("Language(s) not available: {langs}").format(
-                            langs=", ".join(missing)
-                        )
-                        + "</span><br><small>"
-                        + _(
-                            "Available: {langs}. Restart to add missing languages."
-                        ).format(langs=", ".join(avail))
-                        + "</small>"
+                        '<br><span style="color: orange;">⚠ ' +
+                        _("Language(s) not available: {langs}").format(
+                            langs=", ".join(missing)) +
+                        '</span><br><small>' +
+                        _("Available: {langs}. Restart to add missing languages.").format(
+                            langs=", ".join(avail)) +
+                        '</small>'
                     )
             self.lbl_lt_status.setText(status_html)
             self.btn_lt_pull.setVisible(False)
@@ -4644,16 +3844,15 @@ class DicteeSetupDialog(QDialog):
             self.btn_lt_stop.setVisible(True)
         else:
             self.lbl_lt_status.setText(
-                '<span style="color: orange;">⚠ '
-                + _("LibreTranslate stopped")
-                + "</span>"
+                '<span style="color: orange;">⚠ ' +
+                _("LibreTranslate stopped") + '</span>'
             )
             self.btn_lt_pull.setVisible(False)
             self.btn_lt_start.setVisible(True)
             self.btn_lt_stop.setVisible(False)
 
     def _get_lt_selected_langs(self):
-        """Return checked languages, forcing source and target."""
+        """Retourne les langues cochées, en forçant source et cible."""
         langs = set()
         for code, chk in self._lt_lang_checks.items():
             if chk.isChecked():
@@ -4664,7 +3863,7 @@ class DicteeSetupDialog(QDialog):
         return sorted(langs)
 
     def _update_lt_lang_checks(self):
-        """Auto-check source/target languages (without greying out)."""
+        """Coche automatiquement les langues source/cible (sans griser)."""
         src = self.combo_src.currentData()
         tgt = self.combo_tgt.currentData()
         for code, chk in self._lt_lang_checks.items():
@@ -4674,7 +3873,7 @@ class DicteeSetupDialog(QDialog):
                 chk.blockSignals(False)
 
     def _on_lt_langs_changed(self):
-        """Show restart button if languages have changed."""
+        """Affiche le bouton de redémarrage si les langues ont changé."""
         if not docker_container_running():
             self.btn_lt_restart_langs.setVisible(False)
             self.lbl_lt_langs_hint.setVisible(False)
@@ -4691,10 +3890,9 @@ class DicteeSetupDialog(QDialog):
             if removed:
                 parts.append("− " + ", ".join(sorted(removed)))
             self.lbl_lt_langs_hint.setText(
-                '<small style="color: #888;">'
-                + _("Changes: {changes}").format(changes=" / ".join(parts))
-                + "</small>"
-            )
+                '<small style="color: #888;">' +
+                _("Changes: {changes}").format(changes=" / ".join(parts)) +
+                '</small>')
             self.lbl_lt_langs_hint.setVisible(True)
             self.btn_lt_restart_langs.setVisible(True)
         else:
@@ -4702,37 +3900,31 @@ class DicteeSetupDialog(QDialog):
             self.btn_lt_restart_langs.setVisible(False)
 
     def _on_lt_restart_langs(self):
-        """Restart the Docker container with the new languages."""
+        """Redémarre le conteneur Docker avec les nouvelles langues."""
         if self._lt_is_busy():
             return
         languages = ",".join(self._get_lt_selected_langs())
         port = int(self.spin_lt_port.currentText())
 
-        # Save immediately to config
+        # Sauvegarder immédiatement dans la config
         self._save_lt_langs_to_config(languages)
 
         self._lt_set_buttons_busy(True)
         self.lbl_lt_status.setText(
-            '<span style="color: #888;">⏳ '
-            + _("Restarting with languages: {langs}…").format(langs=languages)
-            + "</span>"
-        )
+            '<span style="color: #888;">⏳ ' +
+            _("Restarting with languages: {langs}…").format(langs=languages) + '</span>')
 
-        self._lt_action_thread = _DockerActionThread(
-            "restart", port=port, languages=languages
-        )
+        self._lt_action_thread = _DockerActionThread("restart", port=port, languages=languages)
         self._lt_action_thread.progress.connect(self._on_lt_progress)
         self._lt_action_thread.finished.connect(self._on_lt_restart_langs_finished)
         self._lt_action_thread.start()
 
     def _save_lt_langs_to_config(self, langs):
-        """Update DICTEE_LIBRETRANSLATE_LANGS in dictee.conf (atomic write)."""
+        """Met à jour DICTEE_LIBRETRANSLATE_LANGS dans dictee.conf (écriture atomique)."""
         os.makedirs(os.path.dirname(CONF_PATH), exist_ok=True)
         if not os.path.exists(CONF_PATH):
             with open(CONF_PATH, "w") as f:
-                f.write(
-                    f"# Generated by dictee-setup\nDICTEE_LIBRETRANSLATE_LANGS={langs}\n"
-                )
+                f.write(f"# Generated by dictee-setup\nDICTEE_LIBRETRANSLATE_LANGS={langs}\n")
             return
         lines = []
         found = False
@@ -4760,7 +3952,7 @@ class DicteeSetupDialog(QDialog):
     def _on_lt_restart_langs_finished(self, success, message):
         self._lt_set_buttons_busy(False)
         self._lt_starting_after_apply = False
-        # Invalidate cache to force a fresh request
+        # Invalider le cache pour forcer une requête fraîche
         _lt_langs_cache["time"] = 0
         if not success:
             QMessageBox.critical(self, _("Error"), message)
@@ -4776,18 +3968,12 @@ class DicteeSetupDialog(QDialog):
         try:
             result = subprocess.run(
                 ["pkexec", "usermod", "-aG", "docker", user],
-                capture_output=True,
-                text=True,
-                timeout=15,
-            )
+                capture_output=True, text=True, timeout=15)
             if result.returncode == 0:
                 QMessageBox.information(
-                    self,
-                    _("Docker"),
-                    _("User added to 'docker' group.")
-                    + "\n\n"
-                    + _("You must log out and log back in for this to take effect."),
-                )
+                    self, _("Docker"),
+                    _("User added to 'docker' group.") + "\n\n" +
+                    _("You must log out and log back in for this to take effect."))
             else:
                 QMessageBox.critical(self, _("Error"), result.stderr.strip())
         except Exception as e:
@@ -4800,8 +3986,7 @@ class DicteeSetupDialog(QDialog):
 
         self._docker_pull_thread = DockerPullThread()
         self._docker_pull_thread.progress.connect(
-            lambda text: self.btn_lt_pull.setText(text)
-        )
+            lambda text: self.btn_lt_pull.setText(text))
         self._docker_pull_thread.finished.connect(self._on_lt_pull_finished)
         self._docker_pull_thread.start()
 
@@ -4823,12 +4008,10 @@ class DicteeSetupDialog(QDialog):
 
         self._lt_set_buttons_busy(True)
         self.lbl_lt_status.setText(
-            '<span style="color: #888;">⏳ ' + _("Starting LibreTranslate…") + "</span>"
-        )
+            '<span style="color: #888;">⏳ ' +
+            _("Starting LibreTranslate…") + '</span>')
 
-        self._lt_action_thread = _DockerActionThread(
-            "start", port=port, languages=languages
-        )
+        self._lt_action_thread = _DockerActionThread("start", port=port, languages=languages)
         self._lt_action_thread.progress.connect(self._on_lt_progress)
         self._lt_action_thread.finished.connect(self._on_lt_action_finished)
         self._lt_action_thread.start()
@@ -4839,8 +4022,8 @@ class DicteeSetupDialog(QDialog):
 
         self._lt_set_buttons_busy(True)
         self.lbl_lt_status.setText(
-            '<span style="color: #888;">⏳ ' + _("Stopping LibreTranslate…") + "</span>"
-        )
+            '<span style="color: #888;">⏳ ' +
+            _("Stopping LibreTranslate…") + '</span>')
 
         self._lt_action_thread = _DockerActionThread("stop")
         self._lt_action_thread.progress.connect(self._on_lt_progress)
@@ -4848,11 +4031,12 @@ class DicteeSetupDialog(QDialog):
         self._lt_action_thread.start()
 
     def _lt_is_busy(self):
-        """Check if a Docker operation is in progress."""
-        return self._lt_action_thread is not None and self._lt_action_thread.isRunning()
+        """Vérifie si une opération Docker est en cours."""
+        return (self._lt_action_thread is not None
+                and self._lt_action_thread.isRunning())
 
     def _lt_set_buttons_busy(self, busy):
-        """Disable/reenable all Docker LT buttons."""
+        """Désactive/réactive tous les boutons Docker LT."""
         enabled = not busy
         self.btn_lt_start.setEnabled(enabled)
         self.btn_lt_stop.setEnabled(enabled)
@@ -4860,8 +4044,9 @@ class DicteeSetupDialog(QDialog):
         self.progress_lt.setVisible(busy)
 
     def _on_lt_progress(self, text):
-        """Update status label with progress."""
-        self.lbl_lt_status.setText('<span style="color: #888;">⏳ ' + text + "</span>")
+        """Met à jour le label de statut avec la progression."""
+        self.lbl_lt_status.setText(
+            '<span style="color: #888;">⏳ ' + text + '</span>')
 
     def _on_lt_action_finished(self, success, message):
         self._lt_set_buttons_busy(False)
@@ -4871,7 +4056,7 @@ class DicteeSetupDialog(QDialog):
             QMessageBox.critical(self, _("Error"), message)
         self._check_lt_status()
 
-    # -- ASR models --
+    # -- Modèles ASR --
 
     def _on_model_download(self, model):
         mid = model["id"]
@@ -4881,9 +4066,7 @@ class DicteeSetupDialog(QDialog):
 
         thread = ModelDownloadThread(model)
         thread.progress.connect(lambda text, _m=mid: self._on_model_progress(_m, text))
-        thread.finished.connect(
-            lambda ok, msg, _m=mid: self._on_model_download_finished(_m, ok, msg)
-        )
+        thread.finished.connect(lambda ok, msg, _m=mid: self._on_model_download_finished(_m, ok, msg))
         self._model_threads[mid] = thread
         thread.start()
 
@@ -4892,7 +4075,6 @@ class DicteeSetupDialog(QDialog):
         w["button"].setText(text)
         # Extraire le pourcentage du texte ("filename  42.3%")
         import re as _re
-
         m = _re.search(r"([\d.]+)%", text)
         if m:
             try:
@@ -4910,10 +4092,8 @@ class DicteeSetupDialog(QDialog):
             w["button"].setText(_("Installed"))
             w["button"].setEnabled(False)
             w["button"].setToolTip("")
-            w["label"].setText(
-                f'<span style="color: green;">✓</span> {model["name"]}<br>'
-                f'<span style="font-size: 9.5pt; color: gray;">{model["desc"]}</span>'
-            )
+            w["label"].setText(f'<span style="color: green;">✓</span> {model["name"]}<br>'
+                               f'<span style="font-size: 9.5pt; color: gray;">{model["desc"]}</span>')
             # If TDT just installed, enable Sortformer button
             if mid == "tdt" and "sortformer" in self._model_widgets:
                 dep_w = self._model_widgets["sortformer"]
@@ -4935,9 +4115,7 @@ class DicteeSetupDialog(QDialog):
         btn.setText(_("Installing…"))
         thread = VenvInstallThread(venv_path, pip_package)
         thread.progress.connect(lambda text: btn.setText(text))
-        thread.finished.connect(
-            lambda ok, msg, n=name: self._on_venv_installed(n, ok, msg)
-        )
+        thread.finished.connect(lambda ok, msg, n=name: self._on_venv_installed(n, ok, msg))
         self._venv_threads[name] = thread
         thread.start()
 
@@ -4987,19 +4165,11 @@ class DicteeSetupDialog(QDialog):
             trans_engine = trans_data.split(":")[1]
         else:
             trans_engine = "google"
-        lt_port = (
-            int(self.spin_lt_port.currentText())
-            if self.spin_lt_port.currentText().isdigit()
-            else 5000
-        )
-        lt_langs = (
-            ",".join(self._get_lt_selected_langs())
-            if hasattr(self, "_lt_lang_checks")
-            else ""
-        )
+        lt_port = int(self.spin_lt_port.currentText()) if self.spin_lt_port.currentText().isdigit() else 5000
+        lt_langs = ",".join(self._get_lt_selected_langs()) if hasattr(self, '_lt_lang_checks') else ""
 
         # Backend ASR — wizard uses _wizard_asr, classic uses cmb_asr_backend
-        if self.wizard_mode and hasattr(self, "_wizard_asr"):
+        if self.wizard_mode and hasattr(self, '_wizard_asr'):
             asr_backend = self._wizard_asr
         else:
             asr_backend = self.cmb_asr_backend.currentData() or "parakeet"
@@ -5010,23 +4180,15 @@ class DicteeSetupDialog(QDialog):
 
         # Audio source
         audio_source = ""
-        if hasattr(self, "cmb_audio_source") and self.cmb_audio_source.isEnabled():
+        if hasattr(self, 'cmb_audio_source') and self.cmb_audio_source.isEnabled():
             audio_source = self.cmb_audio_source.currentData() or ""
 
         # PTT config
-        ptt_mode = (
-            self.cmb_ptt_mode.currentData()
-            if hasattr(self, "cmb_ptt_mode")
-            else "toggle"
-        )
-        ptt_key = getattr(self, "_ptt_key", 67)
+        ptt_mode = self.cmb_ptt_mode.currentData() if hasattr(self, 'cmb_ptt_mode') else "toggle"
+        ptt_key = getattr(self, '_ptt_key', 67)
         ptt_mod_translate = ""
 
-        translate_mode = (
-            self.cmb_translate_mode.currentData()
-            if hasattr(self, "cmb_translate_mode")
-            else "disabled"
-        )
+        translate_mode = self.cmb_translate_mode.currentData() if hasattr(self, 'cmb_translate_mode') else "disabled"
         if translate_mode == "same_alt":
             ptt_key_translate = ptt_key
             ptt_mod_translate = "alt"
@@ -5037,181 +4199,80 @@ class DicteeSetupDialog(QDialog):
             ptt_key_translate = ptt_key
             ptt_mod_translate = "shift"
         elif translate_mode == "separate":
-            ptt_key_translate = getattr(self, "_ptt_key_translate", 0)
+            ptt_key_translate = getattr(self, '_ptt_key_translate', 0)
         else:  # disabled
             ptt_key_translate = 0
 
-        ptt_key_llm = getattr(self, "_ptt_key_llm", 0)
-        ptt_key_translate_llm = getattr(self, "_ptt_key_translate_llm", 0)
-
         # Post-processing
-        postprocess = (
-            self.chk_postprocess.isChecked()
-            if hasattr(self, "chk_postprocess")
-            else True
-        )
-        pp_elisions = (
-            self.chk_pp_elisions.isChecked()
-            if hasattr(self, "chk_pp_elisions")
-            else True
-        )
-        pp_numbers = (
-            self.chk_pp_numbers.isChecked() if hasattr(self, "chk_pp_numbers") else True
-        )
-        pp_typography = (
-            self.chk_pp_typography.isChecked()
-            if hasattr(self, "chk_pp_typography")
-            else True
-        )
-        pp_capitalization = (
-            self.chk_pp_capitalization.isChecked()
-            if hasattr(self, "chk_pp_capitalization")
-            else True
-        )
-        pp_fuzzy_dict = (
-            self.chk_pp_fuzzy_dict.isChecked()
-            if hasattr(self, "chk_pp_fuzzy_dict")
-            else True
-        )
-        llm_postprocess = (
-            self.chk_llm.isChecked() if hasattr(self, "chk_llm") else False
-        )
-        llm_provider = (
-            self.cmb_llm_provider.currentData()
-            if hasattr(self, "cmb_llm_provider")
-            else "ollama"
-        )
-        llm_model = (
-            self.cmb_llm_model.currentText()
-            if hasattr(self, "cmb_llm_model")
-            else "gemma3:4b"
-        )
+        postprocess = self.chk_postprocess.isChecked() if hasattr(self, 'chk_postprocess') else True
+        pp_elisions = self.chk_pp_elisions.isChecked() if hasattr(self, 'chk_pp_elisions') else True
+        pp_numbers = self.chk_pp_numbers.isChecked() if hasattr(self, 'chk_pp_numbers') else True
+        pp_typography = self.chk_pp_typography.isChecked() if hasattr(self, 'chk_pp_typography') else True
+        pp_capitalization = self.chk_pp_capitalization.isChecked() if hasattr(self, 'chk_pp_capitalization') else True
+        pp_fuzzy_dict = self.chk_pp_fuzzy_dict.isChecked() if hasattr(self, 'chk_pp_fuzzy_dict') else True
+        llm_postprocess = self.chk_llm.isChecked() if hasattr(self, 'chk_llm') else False
+        llm_provider = self.cmb_llm_provider.currentData() if hasattr(self, 'cmb_llm_provider') else "ollama"
+        llm_model = self.cmb_llm_model.currentText() if hasattr(self, 'cmb_llm_model') else "gemma3:4b"
         if hasattr(self, "txt_llm_api_key") and llm_provider in LLM_PROVIDER_ENV_VARS:
             env_var = LLM_PROVIDER_ENV_VARS[llm_provider]
-            self._llm_api_keys[env_var] = self._sanitize_env_value(
-                self.txt_llm_api_key.text()
-            )
+            self._llm_api_keys[env_var] = self._sanitize_env_value(self.txt_llm_api_key.text())
         try:
             llm_timeout = int(self.conf.get("DICTEE_LLM_TIMEOUT", "10") or "10")
         except ValueError:
             llm_timeout = 10
-        llm_cpu = (
-            self.chk_llm_cpu.isChecked() if hasattr(self, "chk_llm_cpu") else False
-        )
-        llm_openai_api_key = self._sanitize_env_value(
-            self._llm_api_keys.get("OPENAI_API_KEY", "")
-        )
-        llm_openrouter_api_key = self._sanitize_env_value(
-            self._llm_api_keys.get("OPENROUTER_API_KEY", "")
-        )
-        llm_google_api_key = self._sanitize_env_value(
-            self._llm_api_keys.get("GOOGLE_API_KEY", "")
-        )
-        llm_anthropic_api_key = self._sanitize_env_value(
-            self._llm_api_keys.get("ANTHROPIC_API_KEY", "")
-        )
-        llm_groq_api_key = self._sanitize_env_value(
-            self._llm_api_keys.get("GROQ_API_KEY", "")
-        )
-        llm_compat_url = (
-            self.txt_llm_compat_url.text().strip()
-            if hasattr(self, "txt_llm_compat_url")
-            else ""
-        )
-        llm_compat_api_key = self._sanitize_env_value(
-            self._llm_api_keys.get("DICTEE_LLM_OPENAI_COMPAT_KEY", "")
-        )
+        llm_cpu = self.chk_llm_cpu.isChecked() if hasattr(self, 'chk_llm_cpu') else False
+        llm_openai_api_key = self._sanitize_env_value(self._llm_api_keys.get("OPENAI_API_KEY", ""))
+        llm_openrouter_api_key = self._sanitize_env_value(self._llm_api_keys.get("OPENROUTER_API_KEY", ""))
+        llm_google_api_key = self._sanitize_env_value(self._llm_api_keys.get("GOOGLE_API_KEY", ""))
+        llm_anthropic_api_key = self._sanitize_env_value(self._llm_api_keys.get("ANTHROPIC_API_KEY", ""))
+        llm_groq_api_key = self._sanitize_env_value(self._llm_api_keys.get("GROQ_API_KEY", ""))
 
-        save_config(
-            backend,
-            lang_src,
-            lang_tgt,
-            clipboard,
-            animation,
-            ollama_model,
-            ollama_cpu,
-            trans_engine,
-            lt_port,
-            lt_langs,
-            asr_backend,
-            whisper_model,
-            whisper_lang,
-            vosk_model,
-            audio_source=str(audio_source),
-            ptt_mode=ptt_mode,
-            ptt_key=ptt_key,
-            ptt_key_translate=ptt_key_translate,
-            ptt_mod_translate=ptt_mod_translate,
-            ptt_key_llm=ptt_key_llm,
-            ptt_key_translate_llm=ptt_key_translate_llm,
-            postprocess=postprocess,
-            pp_elisions=pp_elisions,
-            pp_numbers=pp_numbers,
-            pp_typography=pp_typography,
-            pp_capitalization=pp_capitalization,
-            pp_fuzzy_dict=pp_fuzzy_dict,
-            llm_postprocess=llm_postprocess,
-            llm_provider=llm_provider,
-            llm_model=llm_model,
-            llm_timeout=llm_timeout,
-            llm_cpu=llm_cpu,
-            llm_openai_api_key=llm_openai_api_key,
-            llm_openrouter_api_key=llm_openrouter_api_key,
-            llm_google_api_key=llm_google_api_key,
-            llm_anthropic_api_key=llm_anthropic_api_key,
-            llm_groq_api_key=llm_groq_api_key,
-            llm_compat_url=llm_compat_url,
-            llm_compat_api_key=llm_compat_api_key,
-        )
+        save_config(backend, lang_src, lang_tgt, clipboard, animation,
+                    ollama_model, ollama_cpu, trans_engine, lt_port, lt_langs,
+                    asr_backend, whisper_model, whisper_lang, vosk_model,
+                    audio_source=str(audio_source),
+                    ptt_mode=ptt_mode, ptt_key=ptt_key,
+                    ptt_key_translate=ptt_key_translate,
+                    ptt_mod_translate=ptt_mod_translate,
+                    postprocess=postprocess,
+                    pp_elisions=pp_elisions, pp_numbers=pp_numbers,
+                    pp_typography=pp_typography, pp_capitalization=pp_capitalization,
+                    pp_fuzzy_dict=pp_fuzzy_dict,
+                    llm_postprocess=llm_postprocess,
+                    llm_provider=llm_provider, llm_model=llm_model,
+                    llm_timeout=llm_timeout, llm_cpu=llm_cpu,
+                    llm_openai_api_key=llm_openai_api_key,
+                    llm_openrouter_api_key=llm_openrouter_api_key,
+                    llm_google_api_key=llm_google_api_key,
+                    llm_anthropic_api_key=llm_anthropic_api_key,
+                    llm_groq_api_key=llm_groq_api_key)
 
-        # systemd services — reload first (needed after first .deb install)
+        # Services systemd — recharger d'abord (nécessaire après première install .deb)
         subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True)
 
         # Services systemd — ASR
-        asr_services = {
-            "parakeet": "dictee",
-            "vosk": "dictee-vosk",
-            "whisper": "dictee-whisper",
-        }
+        asr_services = {"parakeet": "dictee", "vosk": "dictee-vosk", "whisper": "dictee-whisper"}
         active_svc = asr_services.get(asr_backend, "dictee")
         if self.chk_daemon.isChecked():
             for svc_name in asr_services.values():
                 if svc_name == active_svc:
-                    subprocess.run(
-                        ["systemctl", "--user", "enable", "--now", svc_name],
-                        capture_output=True,
-                    )
-                    subprocess.run(
-                        ["systemctl", "--user", "restart", svc_name],
-                        capture_output=True,
-                    )
+                    subprocess.run(["systemctl", "--user", "enable", "--now", svc_name], capture_output=True)
+                    subprocess.run(["systemctl", "--user", "restart", svc_name], capture_output=True)
                 else:
-                    subprocess.run(
-                        ["systemctl", "--user", "disable", "--now", svc_name],
-                        capture_output=True,
-                    )
+                    subprocess.run(["systemctl", "--user", "disable", "--now", svc_name], capture_output=True)
         else:
             for svc_name in asr_services.values():
-                subprocess.run(
-                    ["systemctl", "--user", "disable", "--now", svc_name],
-                    capture_output=True,
-                )
+                subprocess.run(["systemctl", "--user", "disable", "--now", svc_name], capture_output=True)
 
         # Tray
         action = "enable" if self.chk_tray.isChecked() else "disable"
-        subprocess.run(
-            ["systemctl", "--user", action, "--now", "dictee-tray"], capture_output=True
-        )
+        subprocess.run(["systemctl", "--user", action, "--now", "dictee-tray"], capture_output=True)
 
-        # PTT service — enable and (re)start
-        subprocess.run(
-            ["systemctl", "--user", "enable", "dictee-ptt"], capture_output=True
-        )
-        subprocess.run(
-            ["systemctl", "--user", "restart", "dictee-ptt"], capture_output=True
-        )
+        # PTT service — activer et (re)démarrer
+        subprocess.run(["systemctl", "--user", "enable", "dictee-ptt"], capture_output=True)
+        subprocess.run(["systemctl", "--user", "restart", "dictee-ptt"], capture_output=True)
 
-        # Remove old KDE/GNOME shortcuts (dictee-ptt replaces them)
+        # Supprimer les anciens raccourcis KDE/GNOME (dictee-ptt les remplace)
         shortcut_msg = ""
         if self.de_type == "kde":
             for desktop in (DICTEE_DESKTOP, DICTEE_TRANSLATE_DESKTOP):
@@ -5220,18 +4281,14 @@ class DicteeSetupDialog(QDialog):
                 except Exception:
                     pass
             shortcut_msg = "\n" + _("PTT key: {key} ({mode})").format(
-                key=linux_keycode_name(ptt_key), mode=ptt_mode
-            )
+                key=linux_keycode_name(ptt_key), mode=ptt_mode)
 
         self._dirty = False
 
-        # Offer to start/restart LibreTranslate if needed
+        # Proposer de démarrer/redémarrer LibreTranslate si nécessaire
+        # Proposer de démarrer/redémarrer LibreTranslate si nécessaire
         self._lt_starting_after_apply = False
-        if (
-            backend == "libretranslate"
-            and docker_is_installed()
-            and docker_is_accessible()
-        ):
+        if backend == "libretranslate" and docker_is_installed() and docker_is_accessible():
             self._prompt_lt_server()
 
         if not self.wizard_mode:
@@ -5242,64 +4299,50 @@ class DicteeSetupDialog(QDialog):
             )
 
     def _prompt_lt_server(self):
-        """Offer to start/restart LibreTranslate after Apply."""
+        """Propose de démarrer/redémarrer LibreTranslate après Apply."""
         selected = set(self._get_lt_selected_langs())
         running = docker_container_running()
         port = int(self.spin_lt_port.currentText())
 
         if running:
-            # Check if languages have changed
+            # Vérifier si les langues ont changé
             installed = set(libretranslate_available_languages(port=port))
             if selected == installed:
-                return  # Nothing to do, everything is up to date
-            # Languages changed → offer restart
+                return  # Rien à faire, tout est à jour
+            # Langues différentes → proposer restart
             added = selected - installed
             removed = installed - selected
             details = []
             if added:
                 details.append(_("Add: {langs}").format(langs=", ".join(sorted(added))))
             if removed:
-                details.append(
-                    _("Remove: {langs}").format(langs=", ".join(sorted(removed)))
-                )
+                details.append(_("Remove: {langs}").format(langs=", ".join(sorted(removed))))
             msg = (
-                _("The LibreTranslate languages have changed.")
-                + "\n\n"
-                + "\n".join(details)
-                + "\n\n"
-                + _("Restart the server now to apply changes?")
-                + "\n"
-                + _("(This will download missing models if needed)")
+                _("The LibreTranslate languages have changed.") + "\n\n" +
+                "\n".join(details) + "\n\n" +
+                _("Restart the server now to apply changes?") + "\n" +
+                _("(This will download missing models if needed)")
             )
             reply = QMessageBox.question(
-                self,
-                _("LibreTranslate"),
-                msg,
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            )
+                self, _("LibreTranslate"), msg,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             if reply == QMessageBox.StandardButton.Yes:
                 self._lt_starting_after_apply = True
                 self._on_lt_restart_langs()
         else:
-            # Server stopped → offer to start it
+            # Serveur arrêté → proposer de le démarrer
             if not docker_has_image():
-                return  # No image, nothing to offer
+                return  # Pas d'image, rien à proposer
             n_langs = len(selected)
             msg = (
-                _("LibreTranslate is not running.")
-                + "\n\n"
-                + _("Start the server with {n} languages ({langs})?").format(
-                    n=n_langs, langs=", ".join(sorted(selected))
-                )
-                + "\n"
-                + _("(This will download missing models if needed)")
+                _("LibreTranslate is not running.") + "\n\n" +
+                _("Start the server with {n} languages ({langs})?").format(
+                    n=n_langs, langs=", ".join(sorted(selected))) + "\n" +
+                _("(This will download missing models if needed)")
             )
             reply = QMessageBox.question(
-                self,
-                _("LibreTranslate"),
-                msg,
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            )
+                self, _("LibreTranslate"), msg,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             if reply == QMessageBox.StandardButton.Yes:
                 self._lt_starting_after_apply = True
                 self._on_lt_start()
@@ -5307,8 +4350,8 @@ class DicteeSetupDialog(QDialog):
     def _on_ok(self):
         if self._dirty:
             self._on_apply()
-        # Don't close if LibreTranslate is starting up
-        if getattr(self, "_lt_starting_after_apply", False):
+        # Ne pas fermer si LibreTranslate est en cours de démarrage
+        if getattr(self, '_lt_starting_after_apply', False):
             return
         self.accept()
 

@@ -39,29 +39,29 @@ cp ./dictee-ptt.py "$PKG_DIR/usr/bin/dictee-ptt"
 cp ./dictee-postprocess.py "$PKG_DIR/usr/bin/dictee-postprocess"
 chmod 755 "$PKG_DIR/usr/bin/dictee" "$PKG_DIR/usr/bin/dictee-setup" "$PKG_DIR/usr/bin/dictee-tray" "$PKG_DIR/usr/bin/dictee-ptt" "$PKG_DIR/usr/bin/dictee-postprocess"
 
-# Check rpmbuild
+# Vérifier rpmbuild
 if ! command -v rpmbuild >/dev/null 2>&1; then
-    echo "rpmbuild not found. Install with:"
+    echo "rpmbuild non trouvé. Installer avec :"
     echo "  sudo dnf install rpm-build"
     echo "  # ou"
     echo "  sudo apt install rpm"
     exit 1
 fi
 
-# Check that binaries exist (built by build-deb.sh)
+# Vérifier que les binaires existent (compilés par build-deb.sh)
 if [ ! -f "target/release/transcribe" ]; then
-    echo "Binaries not found. Run first:"
+    echo "Binaires non trouvés. Lancez d'abord :"
     echo "  ./build-deb.sh"
     echo "  # ou"
     echo "  cargo build --release --features sortformer"
     exit 1
 fi
 
-# Prepare rpmbuild tree
+# Préparer l'arborescence rpmbuild
 mkdir -p "$RPMBUILD_DIR"/{SPECS,SOURCES,BUILD,RPMS,SRPMS}
 
 # ============================================================
-# Common functions
+# Fonctions communes
 # ============================================================
 
 prepare_buildroot() {
@@ -105,7 +105,7 @@ prepare_buildroot() {
     gzip -9 -f "$buildroot/usr/share/man/man1/"*.1 2>/dev/null || true
     gzip -9 -f "$buildroot/usr/share/man/fr/man1/"*.1 2>/dev/null || true
 
-    # Icons
+    # Icônes
     mkdir -p "$buildroot/usr/share/icons/hicolor/scalable/apps"
     cp "$PKG_DIR/usr/share/icons/hicolor/scalable/apps/"*.svg "$buildroot/usr/share/icons/hicolor/scalable/apps/"
 
@@ -119,7 +119,7 @@ prepare_buildroot() {
     mkdir -p "$buildroot/usr/share/applications"
     cp "$PKG_DIR/usr/share/applications/"*.desktop "$buildroot/usr/share/applications/"
 
-    # Assets (banners + logos)
+    # Assets (bannières + logos)
     mkdir -p "$buildroot/usr/share/dictee/assets"
     cp ./assets/banner-dark.svg ./assets/banner-light.svg "$buildroot/usr/share/dictee/assets/"
     if [ -d "./assets/logos" ]; then
@@ -145,7 +145,7 @@ build_rpm_cuda() {
     echo ""
     echo "=== [RPM CUDA] Building dictee-cuda ==="
 
-    # Recompile in CUDA if needed
+    # Recompiler en CUDA si nécessaire
     if ! nm target/release/transcribe 2>/dev/null | grep -q cuda; then
         echo "Recompilation CUDA..."
         cargo build --release --features "cuda,sortformer" \

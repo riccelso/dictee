@@ -1,61 +1,61 @@
-# CLI Programs
+# Programmes CLI
 
-[Back to main README](../README.md)
+[Retour au README principal](../README.md)
 
 ---
 
-## Overview
+## Vue d'ensemble
 
-| Program | Description | Languages |
-|---------|-------------|----------|
-| `transcribe` | Audio file transcription | Multilingual |
-| `transcribe-daemon` | Unix socket server (preloaded model) | Multilingual |
-| `transcribe-client` | Client: file, stdin, or microphone | Multilingual |
-| `transcribe-diarize` | Transcription + speaker identification | Multilingual |
-| `transcribe-stream-diarize` | Real-time streaming + diarization | English only |
+| Programme | Description | Langues |
+|-----------|-------------|---------|
+| `transcribe` | Transcription d'un fichier audio | Multilingue |
+| `transcribe-daemon` | Serveur socket Unix (modèle préchargé) | Multilingue |
+| `transcribe-client` | Client : fichier, stdin ou micro | Multilingue |
+| `transcribe-diarize` | Transcription + identification des locuteurs | Multilingue |
+| `transcribe-stream-diarize` | Streaming temps réel + diarisation | Anglais uniquement |
 
-All binaries support `--help` / `-h`.
+Tous les binaires supportent `--help` / `-h`.
 
-> **Tip**: dictee uses daemon mode (`transcribe-daemon` + `transcribe-client`). The model is loaded into memory only once, subsequent transcriptions are near-instant.
+> **Conseil** : dictee utilise le mode daemon (`transcribe-daemon` + `transcribe-client`). Le modèle est chargé une seule fois en mémoire, les transcriptions suivantes sont quasi-instantanées.
 
-## Direct Usage
+## Utilisation directe
 
 ```bash
-# Transcribe a file (any format)
+# Transcrire un fichier (tout format)
 transcribe audio.mp3
 
-# Daemon mode (faster for multiple files)
+# Mode daemon (plus rapide pour plusieurs fichiers)
 transcribe-daemon &
 transcribe-client fichier1.wav
 transcribe-client fichier2.ogg
 cat audio.opus | transcribe-client
 
-# Voice dictation from microphone (without the dictee script)
+# Dictée vocale depuis le micro (sans le script dictee)
 transcribe-client
-# → Records until Enter is pressed. The microphone is automatically unmuted if necessary.
+# → Enregistre jusqu'à Entrée. Le micro est démuté automatiquement si nécessaire.
 
-# Transcription with speaker identification
+# Transcription avec identification des locuteurs
 transcribe-diarize reunion.wav
 # [0.00 - 2.50] Speaker 1: Bonjour à tous.
 # [2.80 - 5.10] Speaker 2: Merci d'être venus.
 ```
 
-## ONNX Models
+## Modèles ONNX
 
-Models must be placed in `/usr/share/dictee/`:
+Les modèles doivent être placés dans `/usr/share/dictee/` :
 
 ```
 /usr/share/dictee/
-├── tdt/                  # ParakeetTDT (multilingual)
+├── tdt/                  # ParakeetTDT (multilingue)
 │   ├── encoder-model.onnx
 │   ├── decoder_joint-model.onnx
 │   └── vocab.txt
-├── sortformer/           # Diarization
+├── sortformer/           # Diarisation
 │   └── diar_streaming_sortformer_4spk-v2.1.onnx
-└── nemotron/             # Streaming (English)
+└── nemotron/             # Streaming (anglais)
     ├── encoder-model.onnx
     ├── decoder-model.onnx
     └── vocab.txt
 ```
 
-The TDT model is available on HuggingFace: [istupakov/parakeet-tdt-0.6b-v3-onnx](https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx).
+Le modèle TDT est disponible sur HuggingFace : [istupakov/parakeet-tdt-0.6b-v3-onnx](https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx).

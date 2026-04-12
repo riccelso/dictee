@@ -1,10 +1,10 @@
-# dictee Configuration Wizard v1.1.0 — Implementation Plan
+# Wizard de configuration dictee v1.1.0 — Plan d'implémentation
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a step-by-step configuration wizard to `dictee-setup.py` with 5 pages, visual radio buttons, real-time microphone testing, and dictation test.
+**Goal:** Ajouter un assistant de configuration pas-à-pas (wizard) à `dictee-setup.py` avec 5 pages, radio buttons visuels, test micro temps réel, et test de dictée.
 
-**Architecture:** QStackedWidget with 5 pages in DicteeSetupDialog. Conditional construction: widgets are created once in `__init__()` and placed directly in the appropriate container (stack or scroll) based on `self.wizard_mode`. No dynamic re-parenting.
+**Architecture:** QStackedWidget avec 5 pages dans DicteeSetupDialog. Construction conditionnelle : les widgets sont créés une seule fois dans `__init__()` et placés directement dans le bon conteneur (stack ou scroll) selon `self.wizard_mode`. Pas de re-parenting dynamique.
 
 **Tech Stack:** PyQt6/PySide6, QStackedWidget, QThread (AudioLevelThread), parec/pw-record, wpctl/pactl, gettext i18n
 
@@ -12,17 +12,17 @@
 
 ---
 
-## Chunk 1: Infrastructure
+## Chunk 1 : Infrastructure
 
-### Task 1: --wizard argument in the shell script
+### Task 1 : Argument --wizard dans le script shell
 
 **Files:**
-- Modify: `dictee:83-85` (`--setup)` block)
-- Modify: `dictee:10` (Usage comment)
+- Modify: `dictee:83-85` (bloc `--setup)`)
+- Modify: `dictee:10` (commentaire Usage)
 
-- [ ] **Step 1: Add --wizard to the dictee script**
+- [ ] **Step 1: Ajouter --wizard au script dictee**
 
-In `dictee`, modify the `--setup)` block and add `--wizard)`:
+Dans `dictee`, modifier le bloc `--setup)` et ajouter `--wizard)` :
 
 ```bash
     --setup)
@@ -34,14 +34,14 @@ In `dictee`, modify the `--setup)` block and add `--wizard)`:
         ;;
 ```
 
-And update the Usage comment on line 10:
+Et mettre à jour le commentaire Usage ligne 10 :
 ```bash
 # Usage: dictee [--translate] [--ollama] [--cancel] [--setup [--wizard]]
 ```
 
-- [ ] **Step 2: Add --wizard parsing in dictee-setup.py**
+- [ ] **Step 2: Ajouter le parsing --wizard dans dictee-setup.py**
 
-In `dictee-setup.py`, modify `main()` (line 1937) to parse `--wizard`:
+Dans `dictee-setup.py`, modifier `main()` (ligne 1937) pour parser `--wizard` :
 
 ```python
 def main():
@@ -53,42 +53,42 @@ def main():
     dialog.exec()
 ```
 
-- [ ] **Step 3: Manual test**
+- [ ] **Step 3: Tester manuellement**
 
 ```bash
-dictee-setup --wizard  # must open without error
-dictee --setup --wizard  # same via the shell script
+dictee-setup --wizard  # doit s'ouvrir sans erreur
+dictee --setup --wizard  # idem via le script shell
 ```
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add dictee dictee-setup.py
-git commit -m "feat: add --wizard argument to dictee and dictee-setup"
+git commit -m "feat: ajouter argument --wizard à dictee et dictee-setup"
 ```
 
 ---
 
-### Task 2: QStackedWidget + navigation bar
+### Task 2 : QStackedWidget + barre de navigation
 
 **Files:**
 - Modify: `dictee-setup.py:953-960` (DicteeSetupDialog.__init__)
 
-- [ ] **Step 1: Add wizard_mode and QStackedWidget in __init__**
+- [ ] **Step 1: Ajouter wizard_mode et QStackedWidget dans __init__**
 
-Modify `DicteeSetupDialog.__init__` to accept `wizard=False`. Before building existing widgets, add:
+Modifier `DicteeSetupDialog.__init__` pour accepter `wizard=False`. Avant la construction des widgets existants, ajouter :
 
 ```python
 class DicteeSetupDialog(QDialog):
     def __init__(self, wizard=False):
         super().__init__()
         self.wizard_mode = wizard or not os.path.exists(CONF_PATH)
-        # ... (existing DE detection code, config reading, etc.)
+        # ... (code existant de détection DE, lecture config, etc.)
 ```
 
-- [ ] **Step 2: Create wizard structure if wizard_mode**
+- [ ] **Step 2: Créer la structure wizard si wizard_mode**
 
-After reading config and before building sections, add the conditional branch:
+Après la lecture de config et avant la construction des sections, ajouter la branche conditionnelle :
 
 ```python
 if self.wizard_mode:
@@ -97,18 +97,18 @@ else:
     self._build_classic_ui()
 ```
 
-Extract the existing UI construction code into `_build_classic_ui()`. Create `_build_wizard_ui()` which creates the QStackedWidget with 5 empty pages + navigation bar.
+Extraire le code existant de construction UI dans `_build_classic_ui()`. Créer `_build_wizard_ui()` qui crée le QStackedWidget avec 5 pages vides + barre de navigation.
 
-- [ ] **Step 3: Implement _build_wizard_ui with navigation**
+- [ ] **Step 3: Implémenter _build_wizard_ui avec navigation**
 
 ```python
-from PyQt6.QtWidgets import QStackedWidget  # add to import
+from PyQt6.QtWidgets import QStackedWidget  # ajouter à l'import
 
 def _build_wizard_ui(self):
     main_layout = QVBoxLayout(self)
     self.stack = QStackedWidget()
 
-    # 5 pages (empty for now)
+    # 5 pages (vides pour l'instant)
     self.wizard_pages = []
     for i in range(5):
         page = QWidget()
@@ -118,7 +118,7 @@ def _build_wizard_ui(self):
 
     main_layout.addWidget(self.stack)
 
-    # Navigation bar
+    # Barre de navigation
     nav = QHBoxLayout()
     self.btn_prev = QPushButton(_("← Previous"))
     self.btn_prev.clicked.connect(self._wizard_prev)
@@ -139,7 +139,7 @@ def _build_wizard_ui(self):
     self.resize(600, 500)
 ```
 
-- [ ] **Step 4: Implement navigation methods**
+- [ ] **Step 4: Implémenter les méthodes de navigation**
 
 ```python
 def _wizard_prev(self):
@@ -150,13 +150,13 @@ def _wizard_prev(self):
 
 def _wizard_next(self):
     idx = self.stack.currentIndex()
-    if idx == 4:  # last page → Finish
+    if idx == 4:  # dernière page → Terminer
         self._on_wizard_finish()
         return
     if not self._validate_wizard_page(idx):
         return
     self.stack.setCurrentIndex(idx + 1)
-    if idx + 1 == 4:  # arriving on page 5 → run checks
+    if idx + 1 == 4:  # arrivée sur page 5 → lancer checks
         self._run_wizard_checks()
     self._update_wizard_nav()
 
@@ -172,90 +172,90 @@ def _update_wizard_nav(self):
         self.btn_next.setStyleSheet("")
 
 def _validate_wizard_page(self, idx):
-    """Validates the current page. Returns True if OK."""
-    if idx == 0:  # ASR page: verify that the model is installed
+    """Valide la page courante. Retourne True si OK."""
+    if idx == 0:  # Page ASR : vérifier que le modèle est installé
         return self._validate_asr_model()
-    return True  # pages 1-3: no validation
+    return True  # pages 1-3 : pas de validation
 
 def _on_wizard_finish(self):
     self._on_apply()
     self.accept()
 ```
 
-- [ ] **Step 5: Test**
+- [ ] **Step 5: Tester**
 
 ```bash
-dictee-setup --wizard  # must display 5 empty pages with working navigation
+dictee-setup --wizard  # doit afficher 5 pages vides avec navigation fonctionnelle
 ```
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add dictee-setup.py
-git commit -m "feat: QStackedWidget + wizard navigation in dictee-setup"
+git commit -m "feat: QStackedWidget + navigation wizard dans dictee-setup"
 ```
 
 ---
 
-### Task 3: "Setup wizard" button in classic mode
+### Task 3 : Bouton "Assistant de configuration" en mode classique
 
 **Files:**
-- Modify: `dictee-setup.py` — end of `_build_classic_ui()` (button bar)
+- Modify: `dictee-setup.py` — fin de `_build_classic_ui()` (barre de boutons)
 
-- [ ] **Step 1: Add the button in the existing bar**
+- [ ] **Step 1: Ajouter le bouton dans la barre existante**
 
-In `_build_classic_ui()`, in the button bar at the bottom (next to Cancel), add:
+Dans `_build_classic_ui()`, dans la barre de boutons en bas (à côté de Cancel), ajouter :
 
 ```python
 btn_wizard = QPushButton(_("Setup wizard"))
 btn_wizard.clicked.connect(self._launch_wizard)
-button_layout.insertWidget(0, btn_wizard)  # on the left
+button_layout.insertWidget(0, btn_wizard)  # à gauche
 ```
 
-- [ ] **Step 2: Implement _launch_wizard**
+- [ ] **Step 2: Implémenter _launch_wizard**
 
 ```python
 def _launch_wizard(self):
-    """Closes the dialog and relaunches in wizard mode."""
+    """Ferme le dialog et relance en mode wizard."""
     self.reject()
     subprocess.Popen([sys.executable, __file__, "--wizard"])
 ```
 
-Note: `sys` import already added in Task 1.
+Note : import `sys` déjà ajouté dans Task 1.
 
-- [ ] **Step 3: Test**
+- [ ] **Step 3: Tester**
 
 ```bash
-dictee-setup  # classic mode, verify the "Wizard" button at bottom left
-# Click → must close and reopen in wizard mode
+dictee-setup  # mode classique, vérifier le bouton "Assistant" en bas à gauche
+# Cliquer → doit fermer et rouvrir en mode wizard
 ```
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add dictee-setup.py
-git commit -m "feat: 'Setup wizard' button in classic mode"
+git commit -m "feat: bouton 'Assistant de configuration' en mode classique"
 ```
 
 ---
 
-## Chunk 2: Pages 1 and 2
+## Chunk 2 : Pages 1 et 2
 
-### Task 4: Page 1 — Welcome + ASR Backend (visual radio buttons)
+### Task 4 : Page 1 — Bienvenue + Backend ASR (radio buttons visuels)
 
 **Files:**
-- Modify: `dictee-setup.py` — `_build_wizard_ui()` + new methods
+- Modify: `dictee-setup.py` — `_build_wizard_ui()` + nouvelles méthodes
 
-- [ ] **Step 1: Create _build_wizard_page_asr()**
+- [ ] **Step 1: Créer _build_wizard_page_asr()**
 
-Method that builds page 1 with visual radio buttons (clickable QFrame blocks):
+Méthode qui construit la page 1 avec radio buttons visuels (blocs QFrame cliquables) :
 
 ```python
 def _build_wizard_page_asr(self):
     page = self.wizard_pages[0]
     lay = page.layout()
 
-    # Title
+    # Titre
     title = QLabel(_("Welcome to dictee!"))
     title.setStyleSheet("font-size: 20px; font-weight: bold;")
     title.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -266,7 +266,7 @@ def _build_wizard_page_asr(self):
     subtitle.setStyleSheet("color: #888;")
     lay.addWidget(subtitle)
 
-    # Visual radio buttons
+    # Radio buttons visuels
     self.asr_radio_group = QButtonGroup(self)
     backends = [
         ("parakeet", "Parakeet-TDT 0.6B", _("Recommended"), _("25 languages, ~2.5 GB, ~0.8s")),
@@ -277,30 +277,30 @@ def _build_wizard_page_asr(self):
     for i, (key, name, badge, desc) in enumerate(backends):
         frame = self._make_radio_card(name, badge, desc)
         radio = QRadioButton()
-        radio.setFixedSize(0, 0)  # hidden, logic control only
+        radio.setFixedSize(0, 0)  # caché, contrôle logique uniquement
         self.asr_radio_group.addButton(radio, i)
         frame.mousePressEvent = lambda e, r=radio, k=key: self._select_asr_radio(r, k)
         lay.addWidget(frame)
         self._asr_radio_frames[key] = (frame, radio)
 
-    # Default selection
+    # Sélection par défaut
     self._select_asr_radio(
         self._asr_radio_frames.get(self._current_asr, self._asr_radio_frames["parakeet"])[1],
         self._current_asr if self._current_asr in self._asr_radio_frames else "parakeet"
     )
 
-    # Conditional sub-options (Vosk language, Whisper model)
+    # Sous-options conditionnelles (langue Vosk, modèle Whisper)
     self._build_asr_sub_options(lay)
 
-    # Installation status + download button
+    # Statut d'installation + bouton télécharger
     self._build_asr_model_status(lay)
 
     lay.addStretch()
 ```
 
-- [ ] **Step 2: Create _make_radio_card()**
+- [ ] **Step 2: Créer _make_radio_card()**
 
-Reusable widget for visual radio buttons:
+Widget réutilisable pour les radio buttons visuels :
 
 ```python
 def _make_radio_card(self, title, badge, description, selected=False):
@@ -335,28 +335,28 @@ def _card_style(self, selected):
     return f"QFrame {{ background: {bg}; border: {border}; border-radius: 8px; }}"
 ```
 
-- [ ] **Step 3: Create _select_asr_radio()**
+- [ ] **Step 3: Créer _select_asr_radio()**
 
 ```python
 def _select_asr_radio(self, radio, key):
     radio.setChecked(True)
     self._current_asr = key
-    # Update styles
+    # Mettre à jour les styles
     for k, (frame, _) in self._asr_radio_frames.items():
         frame.setStyleSheet(self._card_style(k == key))
-    # Show/hide sub-options
+    # Afficher/masquer sous-options
     self._update_asr_sub_options(key)
 ```
 
-- [ ] **Step 4: Implement _build_asr_sub_options() and _build_asr_model_status()**
+- [ ] **Step 4: Implémenter _build_asr_sub_options() et _build_asr_model_status()**
 
-Conditional sub-options (Vosk language, Whisper model) + installation status with Download button. Reuse existing Vosk/Whisper ComboBox logic (lines 1125-1180) but in the wizard layout.
+Sous-options conditionnelles (langue Vosk, modèle Whisper) + statut d'installation avec bouton Télécharger. Réutiliser la logique existante des ComboBox Vosk/Whisper (lignes 1125-1180) mais dans le layout wizard.
 
-- [ ] **Step 5: Implement _validate_asr_model()**
+- [ ] **Step 5: Implémenter _validate_asr_model()**
 
 ```python
 def _validate_asr_model(self):
-    """Verifies that the selected ASR model is installed."""
+    """Vérifie que le modèle ASR sélectionné est installé."""
     key = self._current_asr
     if key == "parakeet":
         installed = self._check_parakeet_installed()
@@ -373,33 +373,33 @@ def _validate_asr_model(self):
     return installed
 ```
 
-- [ ] **Step 6: Connect the page in _build_wizard_ui()**
+- [ ] **Step 6: Connecter la page dans _build_wizard_ui()**
 
-Call `self._build_wizard_page_asr()` after creating the pages.
+Appeler `self._build_wizard_page_asr()` après la création des pages.
 
-- [ ] **Step 7: Test**
+- [ ] **Step 7: Tester**
 
 ```bash
-dictee-setup --wizard  # Page 1: radio buttons, selection, sub-options, model status
+dictee-setup --wizard  # Page 1 : radio buttons, sélection, sous-options, statut modèle
 ```
 
 - [ ] **Step 8: Commit**
 
 ```bash
 git add dictee-setup.py
-git commit -m "feat: wizard page 1 — ASR backend with visual radio buttons"
+git commit -m "feat: page 1 wizard — backend ASR avec radio buttons visuels"
 ```
 
 ---
 
-### Task 5: Page 2 — Keyboard Shortcuts
+### Task 5 : Page 2 — Raccourcis clavier
 
 **Files:**
-- Modify: `dictee-setup.py` — new method `_build_wizard_page_shortcuts()`
+- Modify: `dictee-setup.py` — nouvelle méthode `_build_wizard_page_shortcuts()`
 
-- [ ] **Step 1: Create _build_wizard_page_shortcuts()**
+- [ ] **Step 1: Créer _build_wizard_page_shortcuts()**
 
-Reuses existing `ShortcutButton` (line 905), adapted to wizard layout:
+Réutilise `ShortcutButton` existant (ligne 905), adapté au layout wizard :
 
 ```python
 def _build_wizard_page_shortcuts(self):
@@ -411,17 +411,17 @@ def _build_wizard_page_shortcuts(self):
     title.setAlignment(Qt.AlignmentFlag.AlignCenter)
     lay.addWidget(title)
 
-    # Detected environment
+    # Environnement détecté
     env_label = QLabel(_("Detected: {env}").format(env=self.de_name))
     env_label.setStyleSheet("color: #8a8;")
     env_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     lay.addWidget(env_label)
 
     if self.de_type == "unsupported":
-        # Tiling WM: show manual commands
+        # WM tiling : afficher les commandes manuelles
         self._build_tiling_wm_instructions(lay)
     else:
-        # KDE / GNOME: capture buttons
+        # KDE / GNOME : boutons de capture
         form = QFormLayout()
 
         self.btn_capture = ShortcutButton(QKeySequence("F9"))
@@ -434,7 +434,7 @@ def _build_wizard_page_shortcuts(self):
 
         lay.addLayout(form)
 
-        # Conflict detection (KDE only)
+        # Détection de conflit (KDE uniquement)
         if self.de_type == "kde":
             self.lbl_conflict = QLabel()
             lay.addWidget(self.lbl_conflict)
@@ -444,7 +444,7 @@ def _build_wizard_page_shortcuts(self):
     lay.addStretch()
 ```
 
-- [ ] **Step 2: Implement _build_tiling_wm_instructions()**
+- [ ] **Step 2: Implémenter _build_tiling_wm_instructions()**
 
 ```python
 def _build_tiling_wm_instructions(self, layout):
@@ -465,11 +465,11 @@ def _build_tiling_wm_instructions(self, layout):
     layout.addWidget(cmds)
 ```
 
-- [ ] **Step 3: Implement _check_shortcut_conflict()**
+- [ ] **Step 3: Implémenter _check_shortcut_conflict()**
 
 ```python
 def _check_shortcut_conflict(self, seq, label):
-    """Checks KDE shortcut conflicts and displays in label."""
+    """Vérifie les conflits de raccourci KDE et affiche dans label."""
     accel = qt_key_to_kde(seq)
     conflict = check_kde_conflict(accel)
     if conflict:
@@ -480,33 +480,33 @@ def _check_shortcut_conflict(self, seq, label):
         label.setStyleSheet("color: #6a6;")
 ```
 
-- [ ] **Step 4: Connect in _build_wizard_ui()**
+- [ ] **Step 4: Connecter dans _build_wizard_ui()**
 
-- [ ] **Step 5: Test**
+- [ ] **Step 5: Tester**
 
 ```bash
-dictee-setup --wizard  # Page 2: shortcuts, capture, conflict detection
+dictee-setup --wizard  # Page 2 : raccourcis, capture, détection conflit
 ```
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add dictee-setup.py
-git commit -m "feat: wizard page 2 — keyboard shortcuts with conflict detection"
+git commit -m "feat: page 2 wizard — raccourcis clavier avec détection conflit"
 ```
 
 ---
 
-## Chunk 3: Pages 3 and 4
+## Chunk 3 : Pages 3 et 4
 
-### Task 6: Page 3 — Translation
+### Task 6 : Page 3 — Traduction
 
 **Files:**
-- Modify: `dictee-setup.py` — new method `_build_wizard_page_translation()`
+- Modify: `dictee-setup.py` — nouvelle méthode `_build_wizard_page_translation()`
 
-- [ ] **Step 1: Create _build_wizard_page_translation()**
+- [ ] **Step 1: Créer _build_wizard_page_translation()**
 
-Visual radio buttons for translation backends, local ones first:
+Radio buttons visuels pour les backends de traduction, locaux en premier :
 
 ```python
 def _build_wizard_page_translation(self):
@@ -523,7 +523,7 @@ def _build_wizard_page_translation(self):
     subtitle.setStyleSheet("color: #888;")
     lay.addWidget(subtitle)
 
-    # Source / target languages
+    # Langues source / cible
     lang_row = QHBoxLayout()
     src_lay = QVBoxLayout()
     src_lay.addWidget(QLabel(_("Source language")))
@@ -548,7 +548,7 @@ def _build_wizard_page_translation(self):
     lang_row.addLayout(tgt_lay)
     lay.addLayout(lang_row)
 
-    # Visual radio buttons — local ones first
+    # Radio buttons visuels — locaux en premier
     self.trans_radio_group = QButtonGroup(self)
     backends = [
         ("ollama", "ollama", _("100% local — Best quality"), _("translategemma — 2.3–3.4s")),
@@ -566,21 +566,21 @@ def _build_wizard_page_translation(self):
         lay.addWidget(frame)
         self._trans_radio_frames[key] = (frame, radio)
 
-    # Default selection
+    # Sélection par défaut
     default_trans = self._current_trans_backend or "trans:google"
     if default_trans in self._trans_radio_frames:
         self._select_trans_radio(self._trans_radio_frames[default_trans][1], default_trans)
 
-    # Conditional sub-options (ollama model, LT port)
+    # Sous-options conditionnelles (modèle ollama, port LT)
     self._build_trans_sub_options_wizard(lay)
 
-    # Dependency status
+    # Statut dépendances
     self._build_trans_deps_status(lay)
 
     lay.addStretch()
 ```
 
-- [ ] **Step 2: Create _select_trans_radio()**
+- [ ] **Step 2: Créer _select_trans_radio()**
 
 ```python
 def _select_trans_radio(self, radio, key):
@@ -591,38 +591,38 @@ def _select_trans_radio(self, radio, key):
     self._update_trans_sub_options_wizard(key)
 ```
 
-- [ ] **Step 3: Implement sub-options and dependency detection**
+- [ ] **Step 3: Implémenter sous-options et détection dépendances**
 
-Ollama sub-options (model, download) and LibreTranslate (port, Docker) that appear conditionally. Automatic detection: `shutil.which("trans")`, `shutil.which("ollama")`, `shutil.which("docker")`.
+Sous-options ollama (modèle, téléchargement) et LibreTranslate (port, Docker) qui apparaissent conditionnellement. Détection automatique : `shutil.which("trans")`, `shutil.which("ollama")`, `shutil.which("docker")`.
 
-- [ ] **Step 4: Connect in _build_wizard_ui()**
+- [ ] **Step 4: Connecter dans _build_wizard_ui()**
 
-- [ ] **Step 5: Test**
+- [ ] **Step 5: Tester**
 
 ```bash
-dictee-setup --wizard  # Page 3: translation, radio buttons, sub-options
+dictee-setup --wizard  # Page 3 : traduction, radio buttons, sous-options
 ```
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add dictee-setup.py
-git commit -m "feat: wizard page 3 — translation with local backends first"
+git commit -m "feat: page 3 wizard — traduction avec backends locaux en premier"
 ```
 
 ---
 
-### Task 7: AudioLevelThread + list_audio_sources()
+### Task 7 : AudioLevelThread + list_audio_sources()
 
 **Files:**
-- Modify: `dictee-setup.py` — new classes/functions before DicteeSetupDialog
+- Modify: `dictee-setup.py` — nouvelles classes/fonctions avant DicteeSetupDialog
 
-- [ ] **Step 1: Implement list_audio_sources()**
+- [ ] **Step 1: Implémenter list_audio_sources()**
 
 ```python
 def list_audio_sources():
-    """Lists microphone sources via pactl or wpctl.
-    Returns [(id, description), ...] or [] if nothing detected.
+    """Liste les sources micro via pactl ou wpctl.
+    Retourne [(id, description), ...] ou [] si rien détecté.
     """
     sources = []
     try:
@@ -666,11 +666,11 @@ def list_audio_sources():
     return sources
 ```
 
-- [ ] **Step 2: Implement AudioLevelThread**
+- [ ] **Step 2: Implémenter AudioLevelThread**
 
 ```python
 class AudioLevelThread(QThread):
-    """Continuously reads the microphone, emits RMS level (0-100)."""
+    """Lit le micro en continu, émet le niveau RMS (0-100)."""
     level = Signal(int)
 
     def __init__(self, source_id=None):
@@ -689,7 +689,7 @@ class AudioLevelThread(QThread):
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
             )
             while self._running and self._process.poll() is None:
-                # 100ms of s16le mono 16kHz = 3200 bytes = 1600 samples
+                # 100ms de s16le mono 16kHz = 3200 octets = 1600 samples
                 data = self._process.stdout.read(3200)
                 if len(data) < 3200:
                     break
@@ -703,7 +703,7 @@ class AudioLevelThread(QThread):
             self.stop()
 
     def _build_record_cmd(self):
-        """Builds the parec or pw-record command."""
+        """Construit la commande parec ou pw-record."""
         if shutil.which("parec"):
             cmd = ["parec", "--format=s16le", "--rate=16000", "--channels=1"]
             if self._source_id:
@@ -724,36 +724,36 @@ class AudioLevelThread(QThread):
                 self._process.kill()
 ```
 
-- [ ] **Step 3: Unit test**
+- [ ] **Step 3: Tester unitairement**
 
 ```python
-# Quick test in a Python terminal
+# Test rapide dans un terminal Python
 from dictee_setup import list_audio_sources
-print(list_audio_sources())  # must list microphones
+print(list_audio_sources())  # doit lister les micros
 ```
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add dictee-setup.py
-git commit -m "feat: AudioLevelThread and list_audio_sources() for microphone monitoring"
+git commit -m "feat: AudioLevelThread et list_audio_sources() pour monitoring micro"
 ```
 
 ---
 
-### Task 8: Page 4 — Microphone, visual feedback, services
+### Task 8 : Page 4 — Micro, interface visuelle, services
 
 **Files:**
-- Modify: `dictee-setup.py` — new method `_build_wizard_page_visual()`
+- Modify: `dictee-setup.py` — nouvelle méthode `_build_wizard_page_visual()`
 
-- [ ] **Step 1: Create _build_wizard_page_visual() — Microphone section**
+- [ ] **Step 1: Créer _build_wizard_page_visual() — section Microphone**
 
 ```python
 def _build_wizard_page_visual(self):
     page = self.wizard_pages[3]
     lay = page.layout()
 
-    # Use a QScrollArea since this page is dense
+    # Utiliser un QScrollArea car cette page est dense
     scroll = QScrollArea()
     scroll.setWidgetResizable(True)
     content = QWidget()
@@ -768,7 +768,7 @@ def _build_wizard_page_visual(self):
     mic_group = QGroupBox(_("Microphone"))
     mic_lay = QVBoxLayout(mic_group)
 
-    # Audio source
+    # Source audio
     sources = list_audio_sources()
     self.cmb_audio_source = QComboBox()
     if sources:
@@ -794,14 +794,14 @@ def _build_wizard_page_visual(self):
     vol_row.addWidget(self.lbl_volume)
     mic_lay.addLayout(vol_row)
 
-    # Level indicator
+    # Indicateur de niveau
     self.bar_mic_level = QProgressBar()
     self.bar_mic_level.setRange(0, 100)
     self.bar_mic_level.setTextVisible(False)
     self.bar_mic_level.setFixedHeight(12)
     mic_lay.addWidget(self.bar_mic_level)
 
-    # Warning if no microphone
+    # Avertissement si pas de micro
     if not sources:
         warn = QLabel(_("⚠ No microphone detected. Check your audio connection."))
         warn.setStyleSheet("color: #ca6;")
@@ -810,10 +810,10 @@ def _build_wizard_page_visual(self):
     content_lay.addWidget(mic_group)
 ```
 
-- [ ] **Step 2: Visual feedback section (checkboxes)**
+- [ ] **Step 2: Section retour visuel (checkboxes)**
 
 ```python
-    # === Visual feedback ===
+    # === Retour visuel ===
     vis_group = QGroupBox(_("Visual feedback during recording"))
     vis_lay = QVBoxLayout(vis_group)
 
@@ -821,13 +821,13 @@ def _build_wizard_page_visual(self):
     self.chk_anim_speech = QCheckBox(_("animation-speech (fullscreen overlay, Wayland)"))
     self.chk_tray = QCheckBox(_("Notification icon (dictee-tray)"))
 
-    # Smart pre-checking
+    # Pré-coche intelligente
     if self.de_type == "kde":
         self.chk_plasmoid.setChecked(True)
     else:
         self.chk_tray.setChecked(True)
 
-    # Installation status
+    # Statut installation
     for chk, check_fn, name in [
         (self.chk_plasmoid, self._check_plasmoid_installed, "plasmoid"),
         (self.chk_anim_speech, lambda: bool(shutil.which(ANIMATION_SPEECH_BIN)), "animation-speech"),
@@ -843,7 +843,7 @@ def _build_wizard_page_visual(self):
     content_lay.addWidget(vis_group)
 ```
 
-- [ ] **Step 3: Startup services section**
+- [ ] **Step 3: Section services au démarrage**
 
 ```python
     # === Services ===
@@ -865,7 +865,7 @@ def _build_wizard_page_visual(self):
     lay.addWidget(scroll)
 ```
 
-- [ ] **Step 4: Implement _on_volume_changed()**
+- [ ] **Step 4: Implémenter _on_volume_changed()**
 
 ```python
 def _on_volume_changed(self, value):
@@ -878,9 +878,9 @@ def _on_volume_changed(self, value):
         subprocess.Popen(["pactl", "set-source-volume", source, f"{value}%"])
 ```
 
-- [ ] **Step 5: Start/stop AudioLevelThread**
+- [ ] **Step 5: Démarrer/arrêter AudioLevelThread**
 
-Start the thread when arriving on page 4, stop it when leaving:
+Démarrer le thread quand on arrive sur la page 4, l'arrêter quand on quitte :
 
 ```python
 def _start_audio_level(self):
@@ -896,33 +896,33 @@ def _stop_audio_level(self):
         self._audio_thread.wait(2000)
 ```
 
-Modify `_wizard_next()` and `_wizard_prev()` to call `_start_audio_level()` on page 4 entry and `_stop_audio_level()` on exit.
+Modifier `_wizard_next()` et `_wizard_prev()` pour appeler `_start_audio_level()` à l'entrée sur page 4 et `_stop_audio_level()` en sortie.
 
-- [ ] **Step 6: Connect in _build_wizard_ui()**
+- [ ] **Step 6: Connecter dans _build_wizard_ui()**
 
-- [ ] **Step 7: Test**
+- [ ] **Step 7: Tester**
 
 ```bash
-dictee-setup --wizard  # Page 4: microphone with level, visual, services
+dictee-setup --wizard  # Page 4 : micro avec niveau, visual, services
 ```
 
 - [ ] **Step 8: Commit**
 
 ```bash
 git add dictee-setup.py
-git commit -m "feat: wizard page 4 — microphone, visual feedback, startup services"
+git commit -m "feat: page 4 wizard — micro, retour visuel, services au démarrage"
 ```
 
 ---
 
-## Chunk 4: Page 5, integration, i18n, polish
+## Chunk 4 : Page 5, intégration, i18n, finitions
 
-### Task 9: Page 5 — Test
+### Task 9 : Page 5 — Test
 
 **Files:**
-- Modify: `dictee-setup.py` — new method `_build_wizard_page_test()`
+- Modify: `dictee-setup.py` — nouvelle méthode `_build_wizard_page_test()`
 
-- [ ] **Step 1: Create _build_wizard_page_test()**
+- [ ] **Step 1: Créer _build_wizard_page_test()**
 
 ```python
 def _build_wizard_page_test(self):
@@ -939,7 +939,7 @@ def _build_wizard_page_test(self):
     subtitle.setStyleSheet("color: #888;")
     lay.addWidget(subtitle)
 
-    # Automatic checks
+    # Vérifications automatiques
     checks_group = QGroupBox(_("Automatic checks"))
     checks_lay = QVBoxLayout(checks_group)
     self._check_labels = {}
@@ -967,7 +967,7 @@ def _build_wizard_page_test(self):
 
     lay.addWidget(checks_group)
 
-    # Dictation test
+    # Test de dictée
     test_group = QGroupBox(_("Dictation test"))
     test_lay = QVBoxLayout(test_group)
     test_lay.addWidget(QLabel(_("Click the button below and speak for a few seconds.")))
@@ -986,7 +986,7 @@ def _build_wizard_page_test(self):
 
     lay.addWidget(test_group)
 
-    # Final message
+    # Message final
     self.lbl_ready = QLabel(_("🎉 All set! Press your shortcut anytime to dictate."))
     self.lbl_ready.setStyleSheet("color: #afa; font-size: 16px; font-weight: bold;")
     self.lbl_ready.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -996,11 +996,11 @@ def _build_wizard_page_test(self):
     lay.addStretch()
 ```
 
-- [ ] **Step 2: Implement _run_wizard_checks()**
+- [ ] **Step 2: Implémenter _run_wizard_checks()**
 
 ```python
 def _run_wizard_checks(self):
-    """Runs the automatic checks on page 5."""
+    """Lance les vérifications automatiques de la page 5."""
     checks = {
         "daemon": self._check_daemon_active,
         "model": self._check_model_installed,
@@ -1039,7 +1039,7 @@ def _go_to_page(self, page_idx):
     self._update_wizard_nav()
 ```
 
-- [ ] **Step 3: Implement individual check functions**
+- [ ] **Step 3: Implémenter les fonctions de check individuelles**
 
 ```python
 def _check_daemon_active(self):
@@ -1060,22 +1060,22 @@ def _check_model_installed(self):
 
 def _check_shortcut_registered(self):
     if self.de_type == "kde":
-        # Check in kglobalshortcutsrc
+        # Vérifier dans kglobalshortcutsrc
         rc = os.path.expanduser("~/.config/kglobalshortcutsrc")
         if os.path.isfile(rc):
             with open(rc) as f:
                 return "dictee.desktop" in f.read()
-    return True  # GNOME/unsupported: assumed OK
+    return True  # GNOME/unsupported : on suppose OK
 
 def _check_audio_available(self):
     return bool(list_audio_sources())
 ```
 
-- [ ] **Step 4: Implement _on_test_dictee()**
+- [ ] **Step 4: Implémenter _on_test_dictee()**
 
 ```python
 def _on_test_dictee(self):
-    """Launches transcribe-client as a subprocess for testing."""
+    """Lance transcribe-client en sous-processus pour test."""
     self.btn_test_dictee.setText(_("⏹ Stop"))
     self.btn_test_dictee.setEnabled(True)
     self.txt_test_result.clear()
@@ -1104,70 +1104,70 @@ def _on_test_result(self, text):
     self.btn_test_dictee.setText(_("🎤 Test dictation"))
 ```
 
-- [ ] **Step 5: Connect in _build_wizard_ui()**
+- [ ] **Step 5: Connecter dans _build_wizard_ui()**
 
-- [ ] **Step 6: Test**
+- [ ] **Step 6: Tester**
 
 ```bash
-dictee-setup --wizard  # Page 5: automatic checks + dictation test
+dictee-setup --wizard  # Page 5 : checks automatiques + test de dictée
 ```
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add dictee-setup.py
-git commit -m "feat: wizard page 5 — automatic checks and dictation test"
+git commit -m "feat: page 5 wizard — vérifications automatiques et test de dictée"
 ```
 
 ---
 
-### Task 10: Connect _on_apply() to the wizard
+### Task 10 : Connecter _on_apply() au wizard
 
 **Files:**
-- Modify: `dictee-setup.py` — `_on_wizard_finish()` and `_on_apply()`
+- Modify: `dictee-setup.py` — `_on_wizard_finish()` et `_on_apply()`
 
-- [ ] **Step 1: Adapt _on_apply() to support both modes**
+- [ ] **Step 1: Adapter _on_apply() pour supporter les deux modes**
 
-Wizard mode uses `self._current_asr` and `self._current_trans_backend` (strings) instead of ComboBoxes. Modify `_on_apply()` to read from the correct sources:
+Le mode wizard utilise `self._current_asr` et `self._current_trans_backend` (strings) au lieu de ComboBox. Modifier `_on_apply()` pour lire les bonnes sources :
 
 ```python
 def _on_apply(self):
     if self.wizard_mode:
         trans_data = self._current_trans_backend
         asr_backend = self._current_asr
-        # The language/volume ComboBoxes exist in both modes
+        # Les ComboBox langue/volume existent dans les deux modes
     else:
         trans_data = self.cmb_trans_backend.currentData()
         asr_backend = self.cmb_asr_backend.currentData() or "parakeet"
 
-    # ... rest of the code is identical, use trans_data and asr_backend
+    # ... reste du code identique, utiliser trans_data et asr_backend
 ```
 
-- [ ] **Step 2: Save DICTEE_AUDIO_SOURCE**
+- [ ] **Step 2: Sauvegarder DICTEE_AUDIO_SOURCE**
 
-Add in `save_config()`:
+Ajouter dans `save_config()` :
 
 ```python
 def save_config(..., audio_source=""):
-    # ... existing lines ...
+    # ... lignes existantes ...
     if audio_source:
         f.write(f"DICTEE_AUDIO_SOURCE={audio_source}\n")
 ```
 
-And in `_on_apply()`:
+Et dans `_on_apply()` :
 ```python
 audio_source = ""
 if hasattr(self, 'cmb_audio_source'):
     audio_source = self.cmb_audio_source.currentData() or ""
 ```
 
-- [ ] **Step 3: Test the complete flow**
+- [ ] **Step 3: Tester le flux complet**
 
 ```bash
-# Remove config to test first launch
+# Supprimer la config pour tester le premier lancement
 mv ~/.config/dictee.conf ~/.config/dictee.conf.bak
-dictee-setup  # must open in wizard mode
-# Navigate the 5 pages → Finish → verify dictee.conf created
+dictee-setup  # doit s'ouvrir en mode wizard
+# Naviguer les 5 pages → Terminer → vérifier dictee.conf créé
 mv ~/.config/dictee.conf.bak ~/.config/dictee.conf
 ```
 
@@ -1175,51 +1175,51 @@ mv ~/.config/dictee.conf.bak ~/.config/dictee.conf
 
 ```bash
 git add dictee-setup.py
-git commit -m "feat: connect _on_apply() to wizard + DICTEE_AUDIO_SOURCE"
+git commit -m "feat: connecter _on_apply() au wizard + DICTEE_AUDIO_SOURCE"
 ```
 
 ---
 
-### Task 11: Microphone section in classic mode
+### Task 11 : Section micro dans le mode classique
 
 **Files:**
 - Modify: `dictee-setup.py` — `_build_classic_ui()`
 
-- [ ] **Step 1: Add the Microphone section in the classic form**
+- [ ] **Step 1: Ajouter la section Microphone dans le formulaire classique**
 
-After the existing "Visual feedback" section, add a QGroupBox "Microphone" with:
-- Audio source ComboBox
-- Volume slider
-- Level bar (AudioLevelThread)
+Après la section "Interface visuelle" existante, ajouter un QGroupBox "Microphone" avec :
+- ComboBox source audio
+- Slider volume
+- Barre de niveau (AudioLevelThread)
 
-Reuse the same logic as wizard page 4.
+Réutiliser la même logique que la page 4 du wizard.
 
-- [ ] **Step 2: Start AudioLevelThread on open in classic mode**
+- [ ] **Step 2: Démarrer AudioLevelThread à l'ouverture en mode classique**
 
-In `_build_classic_ui()`, start the thread. Stop it in `closeEvent()`.
+Dans `_build_classic_ui()`, démarrer le thread. L'arrêter dans `closeEvent()`.
 
-- [ ] **Step 3: Test**
+- [ ] **Step 3: Tester**
 
 ```bash
-dictee-setup  # classic mode, verify the microphone section
+dictee-setup  # mode classique, vérifier la section micro
 ```
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add dictee-setup.py
-git commit -m "feat: microphone section in classic form"
+git commit -m "feat: section microphone dans le formulaire classique"
 ```
 
 ---
 
-### Task 12: i18n — new strings
+### Task 12 : i18n — nouvelles chaînes
 
 **Files:**
 - Modify: `po/dictee.pot`
 - Modify: `po/{fr,de,es,it,uk,pt}.po`
 
-- [ ] **Step 1: Extract new strings**
+- [ ] **Step 1: Extraire les nouvelles chaînes**
 
 ```bash
 xgettext --language=Python --keyword=_ --output=po/dictee.pot \
@@ -1227,7 +1227,7 @@ xgettext --language=Python --keyword=_ --output=po/dictee.pot \
     dictee-setup.py dictee-tray.py
 ```
 
-- [ ] **Step 2: Update .po files**
+- [ ] **Step 2: Mettre à jour les fichiers .po**
 
 ```bash
 for lang in fr de es it uk pt; do
@@ -1235,9 +1235,9 @@ for lang in fr de es it uk pt; do
 done
 ```
 
-- [ ] **Step 3: Translate new strings (~30)**
+- [ ] **Step 3: Traduire les nouvelles chaînes (~30)**
 
-Open each `.po` file and translate strings marked `fuzzy` or empty. Main strings:
+Ouvrir chaque fichier `.po` et traduire les chaînes marquées `fuzzy` ou vides. Chaînes principales :
 - "Welcome to dictee!", "Choose your speech recognition engine."
 - "Keyboard shortcuts", "Previous", "Next", "Finish"
 - "Translation", "Dictate in one language, get text in another."
@@ -1246,7 +1246,7 @@ Open each `.po` file and translate strings marked `fuzzy` or empty. Main strings
 - "Setup wizard", "Step {n} of 5"
 - Etc.
 
-- [ ] **Step 4: Compile .mo files**
+- [ ] **Step 4: Compiler les .mo**
 
 ```bash
 for lang in fr de es it uk pt; do
@@ -1258,23 +1258,23 @@ done
 
 ```bash
 git add po/
-git commit -m "feat: wizard i18n — 6 languages (fr, de, es, it, uk, pt)"
+git commit -m "feat: i18n wizard — 6 langues (fr, de, es, it, uk, pt)"
 ```
 
 ---
 
-### Task 13: Version bump 1.1.0
+### Task 13 : Version bump 1.1.0
 
 **Files:**
 - Modify: `Cargo.toml` (version)
-- Modify: `build-deb.sh` (×3: version, pkg name, changelog)
+- Modify: `build-deb.sh` (×3 : version, pkg name, changelog)
 - Modify: `pkg/dictee/DEBIAN/control` (version)
 - Modify: `plasmoid/package/metadata.json` (version)
-- Modify: `README.md`, `README.fr.md` (version badge/text)
+- Modify: `README.md`, `README.fr.md` (version badge/texte)
 
-- [ ] **Step 1: Bump all files**
+- [ ] **Step 1: Bumper tous les fichiers**
 
-Follow the MEMORY.md checklist: Cargo.toml, build-deb.sh (×3), control, metadata.json, READMEs.
+Suivre la checklist du MEMORY.md : Cargo.toml, build-deb.sh (×3), control, metadata.json, READMEs.
 
 - [ ] **Step 2: Commit**
 
@@ -1285,43 +1285,43 @@ git commit -m "chore: bump version 1.0.0 → 1.1.0"
 
 ---
 
-### Task 14: Final integration test
+### Task 14 : Test d'intégration final
 
-- [ ] **Step 1: Test wizard first launch**
+- [ ] **Step 1: Test wizard premier lancement**
 
 ```bash
 mv ~/.config/dictee.conf ~/.config/dictee.conf.bak
-dictee-setup  # must open in wizard mode automatically
-# Navigate all pages, verify each section
-# Finish → verify dictee.conf created with all keys
+dictee-setup  # doit ouvrir en mode wizard automatiquement
+# Naviguer toutes les pages, vérifier chaque section
+# Terminer → vérifier dictee.conf créé avec toutes les clés
 mv ~/.config/dictee.conf.bak ~/.config/dictee.conf
 ```
 
-- [ ] **Step 2: Test forced wizard**
+- [ ] **Step 2: Test wizard forcé**
 
 ```bash
-dictee --setup --wizard  # must open in wizard even with existing config
-dictee-setup --wizard    # same
+dictee --setup --wizard  # doit ouvrir en wizard même avec config existante
+dictee-setup --wizard    # idem
 ```
 
-- [ ] **Step 3: Test classic mode**
+- [ ] **Step 3: Test mode classique**
 
 ```bash
-dictee-setup  # classic mode (config exists)
-# Verify: "Wizard" button present, microphone section present
-# Click "Wizard" → must relaunch in wizard mode
+dictee-setup  # mode classique (config existe)
+# Vérifier : bouton "Assistant" présent, section micro présente
+# Cliquer "Assistant" → doit relancer en wizard
 ```
 
 - [ ] **Step 4: Test i18n**
 
 ```bash
-LANGUAGE=de dictee-setup --wizard  # verify German translation
-LANGUAGE=es dictee-setup --wizard  # verify Spanish translation
+LANGUAGE=de dictee-setup --wizard  # vérifier traduction allemande
+LANGUAGE=es dictee-setup --wizard  # vérifier traduction espagnole
 ```
 
-- [ ] **Step 5: Final commit if fixes needed**
+- [ ] **Step 5: Commit final si corrections**
 
 ```bash
 git add -u
-git commit -m "fix: wizard integration fixes"
+git commit -m "fix: corrections intégration wizard"
 ```

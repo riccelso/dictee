@@ -1,39 +1,39 @@
-# Building from source
+# Compilation depuis les sources
 
-[Back to main README](../README.md)
+[Retour au README principal](../README.md)
 
 ---
 
-## Prerequisites
+## Prérequis
 
 - **Rust** (edition 2021)
-- **ffmpeg** (for audio format conversion)
-- **Go** + **scdoc** + **libxkbcommon-dev** (for dotool)
+- **ffmpeg** (pour la conversion des formats audio)
+- **Go** + **scdoc** + **libxkbcommon-dev** (pour dotool)
 
 ## Build
 
 ```bash
-# CPU only
+# CPU uniquement
 cargo build --release
 
-# CUDA + diarization
+# CUDA + diarisation
 cargo build --release --features "cuda,sortformer"
 
-# Debian packages (CPU + CUDA)
+# Paquets Debian (CPU + CUDA)
 ./build-deb.sh
 ```
 
-## Cargo Features
+## Features Cargo
 
 | Feature | Description |
 |---------|-------------|
-| `cpu` | CPU execution (default) |
-| `cuda` | NVIDIA GPU via CUDA |
-| `tensorrt` | TensorRT optimization |
+| `cpu` | Exécution CPU (défaut) |
+| `cuda` | GPU NVIDIA via CUDA |
+| `tensorrt` | Optimisation TensorRT |
 | `coreml` | Apple CoreML |
 | `directml` | Microsoft DirectML |
 | `openvino` | Intel OpenVINO |
-| `sortformer` | Diarization (required for `*-diarize`) |
+| `sortformer` | Diarisation (nécessaire pour `*-diarize`) |
 
 ## Tests
 
@@ -42,24 +42,24 @@ cargo test
 cargo test --features sortformer
 ```
 
-## Audio pipeline (internal architecture)
+## Pipeline audio (architecture interne)
 
 ```
-Audio (any format)
-    │ ffmpeg (if not WAV)
+Audio (tout format)
+    │ ffmpeg (si non-WAV)
 WAV 16kHz mono
     │ preemphasis (0.97)
 STFT (n_fft=512, hop=160, win=400, Hann)
     │
 Mel-spectrogram (128 bins, Slaney)
     │
-ONNX model (ParakeetTDT / Nemotron)
+Modèle ONNX (ParakeetTDT / Nemotron)
     │
-Decoder (tokens → text)
+Décodeur (tokens → texte)
     │
-Timestamp aggregation (tokens → words → sentences)
-    │ [optional]
-Sortformer (diarization)
+Agrégation timestamps (tokens → mots → phrases)
+    │ [optionnel]
+Sortformer (diarisation)
     │
-Final text with timestamps / speakers
+Texte final avec horodatages / locuteurs
 ```
