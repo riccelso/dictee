@@ -33,14 +33,19 @@ def main():
     model_size = os.environ.get("DICTEE_WHISPER_MODEL", "small")
     language = os.environ.get("DICTEE_WHISPER_LANG") or None
 
+    # — Force CUDA visibility even if session sets CUDA_VISIBLE_DEVICES="" —
+    if not os.environ.get("CUDA_VISIBLE_DEVICES"):
+        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
     # — Suppression d'un socket résiduel —
     if os.path.exists(sock_path):
         os.remove(sock_path)
 
     # — Chargement du modèle (une seule fois) —
     print(f"Chargement du modèle faster-whisper '{model_size}'…", file=sys.stderr)
-    model = WhisperModel(model_size, device="auto", compute_type="auto")
-    print(f"Modèle chargé. Écoute sur {sock_path}", file=sys.stderr)
+    device = "cuda" if os.environ.get("CUDA_VISIBLE_DEVICES") else "auto"
+    model = WhisperModel(model_size, device=device, compute_type="auto")
+    print(f"Modèle chargé (device={model.model.device}). Écoute sur {sock_path}", file=sys.stderr)
 
     # — Création du socket Unix —
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

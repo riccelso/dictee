@@ -71,3 +71,11 @@ So manual edits inside `pkg/dictee/usr/bin/*` can be overwritten by normal build
   source-of-truth policy, or developer workflow.
 - If a new recurring rule/process is introduced during development, document it here
   in the same branch before finishing the task.
+
+## Build and install
+
+After implementing changes, always run `./build_and_install.sh` to build Rust binaries
+and install the latest version to the system. This script:
+1. Builds Rust release binaries (`build.sh`)
+2. Syncs root scripts into `pkg/dictee/usr/bin/`
+3. Installs to system (`install.sh`)

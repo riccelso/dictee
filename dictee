@@ -73,18 +73,23 @@ write_state() {
 }
 
 detect_gpu_label() {
-    if command -v dpkg-query >/dev/null 2>&1; then
-        if dpkg-query -W -f='${Status}' dictee-cuda 2>/dev/null | grep -q "install ok installed"; then
-            if command -v nvidia-smi >/dev/null 2>&1; then
-                echo "GPU (CUDA)"
-            else
-                echo "GPU (CUDA, no driver)"
-            fi
-        elif dpkg-query -W -f='${Status}' dictee-cpu 2>/dev/null | grep -q "install ok installed"; then
-            echo "CPU"
-        else
-            echo "CPU"
+    local daemon_pid=""
+    local service_name=""
+    for svc in dictee-whisper.service dictee.service dictee-vosk.service; do
+        if systemctl --user is-active "$svc" >/dev/null 2>&1; then
+            daemon_pid=$(systemctl --user show "$svc" 2>/dev/null | grep '^MainPID=' | cut -d= -f2)
+            service_name="$svc"
+            break
         fi
+    done
+    if [ -n "$daemon_pid" ] && [ "$daemon_pid" != "0" ] && [ -d "/proc/$daemon_pid" ]; then
+        if grep -q 'libcuda\.so' "/proc/$daemon_pid/maps" 2>/dev/null; then
+            echo "GPU"
+        else
+            echo "CPU (daemon has no CUDA)"
+        fi
+    elif command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
+        echo "GPU (daemon offline)"
     else
         echo "CPU"
     fi
@@ -378,16 +383,23 @@ for arg in "$@"; do
     --gpu-status)
         echo "=== dictee GPU Status ==="
         echo ""
-        if command -v dpkg-query >/dev/null 2>&1; then
-            if dpkg-query -W -f='\${Status}' dictee-cuda 2>/dev/null | grep -q "install ok installed"; then
-                echo "Package: dictee-cuda (CUDA build)"
-            elif dpkg-query -W -f='\${Status}' dictee-cpu 2>/dev/null | grep -q "install ok installed"; then
-                echo "Package: dictee-cpu (CPU only)"
+        echo "--- ASR Backend ---"
+        echo "DICTEE_ASR_BACKEND=${DICTEE_ASR_BACKEND:-<not set>}"
+        echo "DICTEE_WHISPER_MODEL=${DICTEE_WHISPER_MODEL:-<not set>}"
+        echo "DICTEE_WHISPER_LANG=${DICTEE_WHISPER_LANG:-<not set>}"
+        echo ""
+        daemon_bin=$(systemctl --user show dictee.service 2>/dev/null | grep '^ExecStart=' | sed 's/^ExecStart=//' | awk '{print $1}')
+        if [ -z "$daemon_bin" ]; then
+            daemon_bin=$(systemctl --user show dictee-whisper.service 2>/dev/null | grep '^ExecStart=' | sed 's/^ExecStart=//' | awk '{print $1}')
+        fi
+        if [ -n "$daemon_bin" ] && [ -f "$daemon_bin" ]; then
+            echo "--- Daemon Binary ---"
+            echo "Path: $daemon_bin"
+            if strings "$daemon_bin" 2>/dev/null | grep -q "ExecutionProvider_Cuda"; then
+                echo "CUDA: compiled in"
             else
-                echo "Package: unknown (not installed via dpkg)"
+                echo "CUDA: NOT compiled in (CPU only)"
             fi
-        else
-            echo "Package: dpkg not available, check installed binary manually"
         fi
         echo ""
         echo "--- NVIDIA ---"
@@ -405,12 +417,16 @@ for arg in "$@"; do
             echo "ollama not found"
         fi
         echo ""
-        echo "--- Daemon ---"
-        if systemctl --user is-active dictee.service >/dev/null 2>&1; then
-            echo "Service: active"
-            journalctl --user -u dictee.service --no-pager -n 5 2>/dev/null || true
+        echo "--- Services ---"
+        if systemctl --user is-active dictee-whisper.service >/dev/null 2>&1; then
+            echo "dictee-whisper.service: ACTIVE (Whisper)"
+        elif systemctl --user is-active dictee.service >/dev/null 2>&1; then
+            echo "dictee.service: ACTIVE (Parakeet)"
+        elif systemctl --user is-active dictee-vosk.service >/dev/null 2>&1; then
+            echo "dictee-vosk.service: ACTIVE (Vosk)"
         else
-            echo "Service: inactive or not found"
+            echo "No ASR service is running!"
+            echo "To start Whisper: systemctl --user enable --now dictee-whisper.service"
         fi
         exit 0
         ;;
