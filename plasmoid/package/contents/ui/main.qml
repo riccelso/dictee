@@ -8,7 +8,7 @@ import org.kde.kirigami as Kirigami
 PlasmoidItem {
     id: root
 
-    // State: "offline", "idle", "recording", "transcribing"
+    // State: "offline", "idle", "recording", "transcribing", "adjusting", "translating"
     property string state: "offline"
     property string lastTranscription: ""
     // Niveau audio micro (0.0 - 1.0)
@@ -37,6 +37,8 @@ PlasmoidItem {
         case "recording":
             return Kirigami.Theme.highlightColor
         case "transcribing":
+        case "adjusting":
+        case "translating":
             return Kirigami.Theme.positiveTextColor
         case "idle":
             return Kirigami.Theme.textColor
@@ -58,7 +60,11 @@ PlasmoidItem {
         case "recording":
             return i18n("Recording…")
         case "transcribing":
-            return i18n("Transcribing…")
+            return i18n("Transcribing (whisper)…")
+        case "adjusting":
+            return i18n("Adjusting text…")
+        case "translating":
+            return i18n("Translating…")
         default:
             return ""
         }
@@ -74,7 +80,7 @@ PlasmoidItem {
 
             if (source === daemonCheckCmd) {
                 // Polling lent : offline/idle — jamais pendant recording/transcribing
-                if (stdout === "offline" && root.state !== "recording" && root.state !== "transcribing") {
+                if (stdout === "offline" && root.state !== "recording" && root.state !== "transcribing" && root.state !== "adjusting" && root.state !== "translating") {
                     root.state = "offline"
                 } else if (stdout !== "offline" && root.state === "offline") {
                     root.state = "idle"
@@ -187,13 +193,12 @@ PlasmoidItem {
         if (newState === "recording") {
             root.state = "recording"
             recordingTimer.restart()
-        } else if (newState === "transcribing" && root.state !== "transcribing") {
-            root.state = "transcribing"
+        } else if ((newState === "transcribing" || newState === "adjusting" || newState === "translating") && root.state !== newState) {
+            root.state = newState
             recordingTimer.stop()
             transcribingTimer.restart()
         } else if (newState === "idle") {
-            // Retour à idle depuis n'importe quel état actif
-            if (root.state === "recording" || root.state === "transcribing") {
+            if (root.state === "recording" || root.state === "transcribing" || root.state === "adjusting" || root.state === "translating") {
                 transcribingTimer.stop()
                 recordingTimer.stop()
                 root.state = "idle"
@@ -229,14 +234,14 @@ PlasmoidItem {
         }
     }
 
-    // Timer pour l'etat transcribing (temporaire, 8s max)
+    // Timer pour l'etat transcribing/adjusting/translating (temporaire, 8s max)
     Timer {
         id: transcribingTimer
         interval: 8000
         running: false
         repeat: false
         onTriggered: {
-            if (root.state === "transcribing") {
+            if (root.state === "transcribing" || root.state === "adjusting" || root.state === "translating") {
                 root.state = "idle"
             }
         }

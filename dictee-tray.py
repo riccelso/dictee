@@ -130,7 +130,7 @@ ICON_MAP = {
     "offline": "parakeet-offline",
     "recording": "parakeet-recording",
     "transcribing": "parakeet-transcribing",
-    "llm": "parakeet-transcribing",
+    "adjusting": "parakeet-transcribing",
     "translating": "parakeet-transcribing",
 }
 
@@ -222,7 +222,7 @@ def read_state():
     try:
         with open(STATE_FILE, "r") as f:
             state = f.read().strip()
-            if state in ("recording", "transcribing", "llm", "translating"):
+            if state in ("recording", "transcribing", "adjusting", "translating"):
                 return state
             if state == "cancelled":
                 return "idle"
@@ -368,7 +368,7 @@ class DicteeTrayAppIndicator:
 
     def _check_state(self):
         file_state = read_state()
-        if file_state in ("recording", "transcribing", "llm", "translating"):
+        if file_state in ("recording", "transcribing", "adjusting", "translating"):
             self.state = file_state
         elif self._daemon_active:
             self.state = "idle"
@@ -394,14 +394,21 @@ class DicteeTrayAppIndicator:
             labels = {
                 "idle": _("Daemon active"),
                 "recording": _("Recording…"),
-                "transcribing": _("Transcribing…"), "llm": _("Running LLM…"), "translating": _("Translating…"),
+                "transcribing": _("Transcribing (whisper)…"),
+                "adjusting": _("Adjusting text…"),
+                "translating": _("Translating…"),
             }
             self.item_daemon.set_label(
                 f"■ {labels.get(self.state, _('Daemon active'))}"
             )
 
         # Menu dictée / traduction
-        is_busy = self.state in ("recording", "transcribing", "llm", "translating")
+        is_busy = self.state in (
+            "recording",
+            "transcribing",
+            "adjusting",
+            "translating",
+        )
         is_translating = is_busy and os.path.isfile(TRANSLATE_FLAG)
         self.item_dictee.set_label(
             _("Stop translation")
@@ -552,7 +559,7 @@ class DicteeTrayQt:
             else:
                 run_dictee()
         elif reason == self.QSystemTrayIcon.ActivationReason.MiddleClick:
-            if self.state in ("recording", "transcribing", "llm", "translating"):
+            if self.state in ("recording", "transcribing", "adjusting", "translating"):
                 run_dictee("--cancel")
 
     def _check_daemon(self):
@@ -560,7 +567,7 @@ class DicteeTrayQt:
 
     def _check_state(self):
         file_state = read_state()
-        if file_state in ("recording", "transcribing", "llm", "translating"):
+        if file_state in ("recording", "transcribing", "adjusting", "translating"):
             self.state = file_state
         elif self._daemon_active:
             self.state = "idle"
@@ -582,8 +589,8 @@ class DicteeTrayQt:
             "recording": _("Dictation — recording")
             + "\n"
             + _("Click = stop, Middle = cancel"),
-            "transcribing": _("Dictation — transcribing"),
-            "llm": _("Dictation — running LLM"),
+            "transcribing": _("Dictation — transcribing (whisper)"),
+            "adjusting": _("Dictation — adjusting text"),
             "translating": _("Dictation — translating"),
         }
         self.tray.setToolTip(tooltips.get(self.state, _("Dictation")))
@@ -597,7 +604,9 @@ class DicteeTrayQt:
             labels = {
                 "idle": _("Daemon active"),
                 "recording": _("Recording…"),
-                "transcribing": _("Transcribing…"), "llm": _("Running LLM…"), "translating": _("Translating…"),
+                "transcribing": _("Transcribing (whisper)…"),
+                "adjusting": _("Adjusting text…"),
+                "translating": _("Translating…"),
             }
             self.action_daemon.setText(
                 f"{labels.get(self.state, '  ' + _('Daemon active'))}{pad}■"
@@ -605,7 +614,12 @@ class DicteeTrayQt:
             self.action_daemon.setIcon(self._dot_icon("#2ecc71"))
             self.action_daemon_hint.setText(f" {_('click to stop')}")
 
-        is_busy = self.state in ("recording", "transcribing", "llm", "translating")
+        is_busy = self.state in (
+            "recording",
+            "transcribing",
+            "adjusting",
+            "translating",
+        )
         is_translating = is_busy and os.path.isfile(TRANSLATE_FLAG)
         self.action_dictee.setText(
             _("Stop translation")

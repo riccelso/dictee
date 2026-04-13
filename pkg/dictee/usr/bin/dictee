@@ -72,6 +72,38 @@ write_state() {
     ) 200>"$STATE_LOCK"
 }
 
+detect_gpu_label() {
+    if command -v rpm >/dev/null 2>&1; then
+        if rpm -q dictee-cuda >/dev/null 2>&1; then
+            if command -v nvidia-smi >/dev/null 2>&1; then
+                echo "GPU (CUDA)"
+            else
+                echo "GPU (CUDA, no driver)"
+            fi
+        elif rpm -q dictee-cpu >/dev/null 2>&1; then
+            echo "CPU"
+        else
+            echo "CPU"
+        fi
+    elif command -v dpkg-query >/dev/null 2>&1; then
+        if dpkg-query -W -f='${Status}' dictee-cuda 2>/dev/null | grep -q "install ok installed"; then
+            if command -v nvidia-smi >/dev/null 2>&1; then
+                echo "GPU (CUDA)"
+            else
+                echo "GPU (CUDA, no driver)"
+            fi
+        elif dpkg-query -W -f='${Status}' dictee-cpu 2>/dev/null | grep -q "install ok installed"; then
+            echo "CPU"
+        else
+            echo "CPU"
+        fi
+    else
+        echo "CPU"
+    fi
+}
+
+GPU_LABEL=$(detect_gpu_label)
+
 # Post-traitement du texte (règles regex + dictionnaire + LLM optionnel)
 if [ "${DICTEE_POSTPROCESS:-true}" = "true" ] && command -v dictee-postprocess >/dev/null 2>&1; then
     SUPPRIME="| dictee-postprocess"
@@ -740,6 +772,12 @@ if [ -f "$PIDFILE" ]; then
 
     raw=$(eval transcribe-client "$RECORDING_FILE")
     if [ -n "$SUPPRIME" ]; then
+        if [ "$LLM_POSTPROCESS" = true ]; then
+            write_state "adjusting"
+            if [ -n "$id" ]; then
+                notify-send --replace-id="$id" -t 30000 -i audio-chat-none-symbolic -a Dictee "Adjusting text..."
+            fi
+        fi
         echo "$raw" | DICTEE_LLM_POSTPROCESS="$LLM_POSTPROCESS" dictee-postprocess > /dev/shm/.dictee_pp
         transcribed=$(cat /dev/shm/.dictee_pp; printf x)
         transcribed="${transcribed%x}"
@@ -757,6 +795,7 @@ if [ -f "$PIDFILE" ]; then
 
     if [ "$TRANSLATE" = true ]; then
         # Traduire et copier
+        write_state "translating"
         if [ -n "$id" ]; then
             notify-send --replace-id="$id" -t 30000 -i audio-chat-none-symbolic -a Dictee "Translating..."
         fi
@@ -843,8 +882,8 @@ else
 
     # Notification (sert aussi de délai pour pw-record)
     if [ "$TRANSLATE" = true ]; then
-        notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Recording $LANG_LABEL ($TRANSLATE_BACKEND)" >"$ID_TMP_FILE"
+        notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Recording $LANG_LABEL ($TRANSLATE_BACKEND) [$GPU_LABEL]" >"$ID_TMP_FILE"
     else
-        notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Recording started" >"$ID_TMP_FILE"
+        notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Recording started [$GPU_LABEL]" >"$ID_TMP_FILE"
     fi
 fi
