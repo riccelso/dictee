@@ -72,6 +72,26 @@ write_state() {
     ) 200>"$STATE_LOCK"
 }
 
+detect_gpu_label() {
+    if command -v dpkg-query >/dev/null 2>&1; then
+        if dpkg-query -W -f='${Status}' dictee-cuda 2>/dev/null | grep -q "install ok installed"; then
+            if command -v nvidia-smi >/dev/null 2>&1; then
+                echo "GPU (CUDA)"
+            else
+                echo "GPU (CUDA, no driver)"
+            fi
+        elif dpkg-query -W -f='${Status}' dictee-cpu 2>/dev/null | grep -q "install ok installed"; then
+            echo "CPU"
+        else
+            echo "CPU"
+        fi
+    else
+        echo "CPU"
+    fi
+}
+
+GPU_LABEL=$(detect_gpu_label)
+
 # Post-traitement du texte (règles regex + dictionnaire + LLM optionnel)
 if [ "${DICTEE_POSTPROCESS:-true}" = "true" ] && command -v dictee-postprocess >/dev/null 2>&1; then
     SUPPRIME="| dictee-postprocess"
@@ -354,6 +374,45 @@ for arg in "$@"; do
         ;;
     --llm)
         LLM_POSTPROCESS=true
+        ;;
+    --gpu-status)
+        echo "=== dictee GPU Status ==="
+        echo ""
+        if command -v dpkg-query >/dev/null 2>&1; then
+            if dpkg-query -W -f='\${Status}' dictee-cuda 2>/dev/null | grep -q "install ok installed"; then
+                echo "Package: dictee-cuda (CUDA build)"
+            elif dpkg-query -W -f='\${Status}' dictee-cpu 2>/dev/null | grep -q "install ok installed"; then
+                echo "Package: dictee-cpu (CPU only)"
+            else
+                echo "Package: unknown (not installed via dpkg)"
+            fi
+        else
+            echo "Package: dpkg not available, check installed binary manually"
+        fi
+        echo ""
+        echo "--- NVIDIA ---"
+        if command -v nvidia-smi >/dev/null 2>&1; then
+            nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used --format=csv,noheader 2>/dev/null || echo "nvidia-smi failed"
+        else
+            echo "nvidia-smi not found"
+        fi
+        echo ""
+        echo "--- Ollama GPU ---"
+        if command -v ollama >/dev/null 2>&1; then
+            echo "OLLAMA_NUM_GPU=${OLLAMA_NUM_GPU:-<not set, auto-detect>}"
+            echo "DICTEE_LLM_CPU=${DICTEE_LLM_CPU:-<not set>}"
+        else
+            echo "ollama not found"
+        fi
+        echo ""
+        echo "--- Daemon ---"
+        if systemctl --user is-active dictee.service >/dev/null 2>&1; then
+            echo "Service: active"
+            journalctl --user -u dictee.service --no-pager -n 5 2>/dev/null || true
+        else
+            echo "Service: inactive or not found"
+        fi
+        exit 0
         ;;
     --paste-clipboard)
         PASTE_MODE="clipboard"
@@ -735,11 +794,14 @@ if [ -f "$PIDFILE" ]; then
     fi
 
     if [ -n "$id" ]; then
-        notify-send --replace-id="$id" -t 30000 -i audio-chat-none-symbolic -a Dictee "Recording stopped"
+        notify-send --replace-id="$id" -t 30000 -i audio-chat-none-symbolic -a Dictee "Recording stopped [$GPU_LABEL]"
     fi
 
     raw=$(eval transcribe-client "$RECORDING_FILE")
     if [ -n "$SUPPRIME" ]; then
+        if [ "$LLM_POSTPROCESS" = true ] && [ -n "$id" ]; then
+            notify-send --replace-id="$id" -t 30000 -i audio-chat-none-symbolic -a Dictee "Transcribing... (LLM)" &>/dev/null &
+        fi
         echo "$raw" | DICTEE_LLM_POSTPROCESS="$LLM_POSTPROCESS" dictee-postprocess > /dev/shm/.dictee_pp
         transcribed=$(cat /dev/shm/.dictee_pp; printf x)
         transcribed="${transcribed%x}"
@@ -843,8 +905,8 @@ else
 
     # Notification (sert aussi de délai pour pw-record)
     if [ "$TRANSLATE" = true ]; then
-        notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Recording $LANG_LABEL ($TRANSLATE_BACKEND)" >"$ID_TMP_FILE"
+        notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Recording $LANG_LABEL ($TRANSLATE_BACKEND) [$GPU_LABEL]" >"$ID_TMP_FILE"
     else
-        notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Recording started" >"$ID_TMP_FILE"
+        notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Recording started [$GPU_LABEL]" >"$ID_TMP_FILE"
     fi
 fi
