@@ -28,11 +28,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("Arguments:");
         eprintln!("  [model_dir]   Répertoire du modèle TDT (défaut: /usr/share/dictee/tdt)");
         eprintln!();
-        eprintln!("Écoute sur {}. Utiliser avec transcribe-client.", socket_path);
+        eprintln!(
+            "Écoute sur {}. Utiliser avec transcribe-client.",
+            socket_path
+        );
         return Ok(());
     }
 
-    let model_dir = if args.len() > 1 { &args[1] } else { "/usr/share/dictee/tdt" };
+    let model_dir = if args.len() > 1 {
+        &args[1]
+    } else {
+        "/usr/share/dictee/tdt"
+    };
 
     // Remove existing socket
     if Path::new(&socket_path).exists() {
@@ -41,11 +48,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Configure CUDA if available
     #[cfg(feature = "cuda")]
+    let provider_name = "CUDA";
+    #[cfg(not(feature = "cuda"))]
+    let provider_name = "CPU";
+
+    #[cfg(feature = "cuda")]
     let config = ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cuda);
     #[cfg(not(feature = "cuda"))]
     let config = ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cpu);
 
-    eprintln!("Loading model from {}...", model_dir);
+    eprintln!(
+        "Loading model from {}... (execution provider: {})",
+        model_dir, provider_name
+    );
+    #[cfg(feature = "cuda")]
+    eprintln!(
+        "Note: ONNX Runtime will silently fall back to CPU if CUDA is unavailable. \
+         Check with: nvidia-smi && ollama ps"
+    );
     let mut parakeet = ParakeetTDT::from_pretrained(model_dir, Some(config))?;
     eprintln!("Model loaded. Listening on {}", socket_path);
 
