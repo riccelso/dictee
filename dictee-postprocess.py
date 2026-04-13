@@ -1,33 +1,33 @@
 #!/usr/bin/python3
-"""dictee-postprocess — filtre post-traitement pour la dictée vocale.
+"""dictee-postprocess — post-processing filter for voice dictation.
 
-Lit le texte transcrit sur stdin, applique séquentiellement :
-  1.  Règles regex (annotations, hésitations, commandes vocales, dédup, ponctuation, élisions)
-  2.  Élisions françaises avancées (avec h aspirés)
-  3.  Conversion nombres en chiffres (text2num, optionnel)
-  4.  Typographie française (espaces insécables)
-  5.  Dictionnaire (système + personnel, avec matching phonétique jellyfish)
-  6.  Capitalisation
-  7.  Correction LLM optionnelle (ollama / OpenAI / OpenRouter / Google Gemini / Claude / Groq)
+Reads transcribed text from stdin, applies sequentially:
+  1.  Regex rules (annotations, hesitations, voice commands, dedup, punctuation, elisions)
+  2.  Advanced French elisions (with h aspirés)
+  3.  Number to digit conversion (text2num, optional)
+  4.  French typography (non-breaking spaces)
+  5.  Dictionary (system + personal, with phonetic jellyfish matching)
+  6.  Capitalization
+  7.  Optional LLM adjustment (grammar fix / better text, with chunking for large text)
 
-Écrit le résultat sur stdout.
+Writes the result to stdout.
 
-Configuration via variables d'environnement :
-  DICTEE_LANG_SOURCE       — langue source (fr, en, de, ...) pour filtrer les règles
-  DICTEE_PP_ELISIONS       — true/false (défaut: true)  — élisions françaises avancées
-  DICTEE_PP_NUMBERS        — true/false (défaut: true)  — conversion nombres→chiffres
-  DICTEE_PP_TYPOGRAPHY     — true/false (défaut: true)  — typographie française
-  DICTEE_PP_CAPITALIZATION — true/false (défaut: true)  — capitalisation automatique
-  DICTEE_PP_FUZZY_DICT     — true/false (défaut: true)  — matching phonétique dictionnaire
-  DICTEE_LLM_POSTPROCESS   — true/false (défaut: false) — correction LLM
-  DICTEE_LLM_PROVIDER      — ollama/openai/openrouter/gemini/anthropic/groq (défaut: ollama)
-  DICTEE_LLM_MODEL         — modèle LLM (défaut: gemma3:4b)
-  DICTEE_LLM_TIMEOUT       — timeout en secondes (défaut: 10)
-  DICTEE_LLM_CPU           — true/false (ollama uniquement)
-  DICTEE_LLM_ADDITIONAL_CONTEXT — contexte additionnel injecté dans le prompt LLM
-  DICTEE_LLM_DEBUG         — true/false (logs LLM détaillés sur stderr)
+Configuration via environment variables:
+  DICTEE_LANG_SOURCE       -- source language (fr, en, de, ...) for rule filtering
+  DICTEE_PP_ELISIONS       -- true/false (default: true)  -- advanced French elisions
+  DICTEE_PP_NUMBERS        -- true/false (default: true)  -- number to digit conversion
+  DICTEE_PP_TYPOGRAPHY     -- true/false (default: true)  -- French typography
+  DICTEE_PP_CAPITALIZATION -- true/false (default: true)  -- auto-capitalization
+  DICTEE_PP_FUZZY_DICT     -- true/false (default: true)  -- phonetic dictionary matching
+  DICTEE_LLM_POSTPROCESS   -- true/false (default: false) -- LLM adjustment
+  DICTEE_LLM_PROVIDER      -- ollama/openai/openrouter/gemini/anthropic/groq (default: ollama)
+  DICTEE_LLM_MODEL         -- LLM model (default: gemma3:4b)
+  DICTEE_LLM_TIMEOUT       -- base timeout in seconds (default: 10, adaptive scaling for large text)
+  DICTEE_LLM_CPU           -- true/false (ollama only)
+  DICTEE_LLM_ADDITIONAL_CONTEXT -- additional context injected into LLM prompt (domain jargon)
+  DICTEE_LLM_DEBUG         -- true/false (detailed LLM logs to stderr)
 
-Clés API distantes lues depuis l'environnement :
+Remote API keys read from environment:
   OPENAI_API_KEY / OPENROUTER_API_KEY / GOOGLE_API_KEY / GEMINI_API_KEY / ANTHROPIC_API_KEY / GROQ_API_KEY
 """
 
@@ -50,7 +50,8 @@ import urllib.request
 XDG_DATA = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
 _VENV_DIR = os.path.join(XDG_DATA, "dictee", "postprocess-env")
 _VENV_SITE = os.path.join(
-    _VENV_DIR, "lib",
+    _VENV_DIR,
+    "lib",
     f"python{sys.version_info.major}.{sys.version_info.minor}",
     "site-packages",
 )
@@ -111,7 +112,7 @@ def _preview_text(text, max_len=120):
     escaped = text.replace("\n", "\\n")
     if len(escaped) <= max_len:
         return escaped
-    return escaped[:max_len - 3] + "..."
+    return escaped[: max_len - 3] + "..."
 
 
 def _log_stage(name, before, after, elapsed_ms):
@@ -140,14 +141,10 @@ def _llm_debug(msg):
 
 # ── Chargement des règles regex ──────────────────────────────────────
 
-_RULE_RE = re.compile(
-    r"^\s*\[([a-z]{2}|\*)\]\s*/(.+)/(.+)/([igm]*)\s*$"
-)
+_RULE_RE = re.compile(r"^\s*\[([a-z]{2}|\*)\]\s*/(.+)/(.+)/([igm]*)\s*$")
 
 # Règles avec remplacement vide : /PATTERN//FLAGS
-_RULE_EMPTY_RE = re.compile(
-    r"^\s*\[([a-z]{2}|\*)\]\s*/(.+)//([igm]*)\s*$"
-)
+_RULE_EMPTY_RE = re.compile(r"^\s*\[([a-z]{2}|\*)\]\s*/(.+)//([igm]*)\s*$")
 
 
 def _parse_rules(path):
@@ -180,23 +177,26 @@ def _parse_rules(path):
                 flags |= re.MULTILINE
             # \s dans les classes [,.\s] ne doit pas manger les \n produits par d'autres règles
             # Remplacer \s par \t  (espace + tab) dans les classes de caractères
-            pattern = re.sub(r'\[([^\]]*?)\\s([^\]]*?)\]',
-                             lambda m: '[' + m.group(1) + r' \t' + m.group(2) + ']',
-                             pattern)
+            pattern = re.sub(
+                r"\[([^\]]*?)\\s([^\]]*?)\]",
+                lambda m: "[" + m.group(1) + r" \t" + m.group(2) + "]",
+                pattern,
+            )
             try:
                 compiled = re.compile(pattern, flags)
             except re.error:
                 continue
             # Convertir les séquences d'échappement dans le remplacement
-            replacement = (replacement
-                           .replace("\\n", "\n")
-                           .replace("\\t", "\t")
-                           .replace("\\u00a0", "\u00a0")
-                           .replace("\\u202f", "\u202f")
-                           .replace("\\u2026", "\u2026")
-                           .replace("\\u2014", "\u2014")
-                           .replace("\\u00ab", "\u00ab")
-                           .replace("\\u00bb", "\u00bb"))
+            replacement = (
+                replacement.replace("\\n", "\n")
+                .replace("\\t", "\t")
+                .replace("\\u00a0", "\u00a0")
+                .replace("\\u202f", "\u202f")
+                .replace("\\u2026", "\u2026")
+                .replace("\\u2014", "\u2014")
+                .replace("\\u00ab", "\u00ab")
+                .replace("\\u00bb", "\u00bb")
+            )
             rules.append((compiled, replacement))
     return rules
 
@@ -222,54 +222,121 @@ def apply_rules(text, rules):
 # ── Élisions françaises avancées ─────────────────────────────────────
 
 # Mots commençant par h aspiré (PAS d'élision)
-H_ASPIRE = frozenset({
-    'hache', 'haie', 'haine', 'hall', 'halte', 'halo',
-    'hamac', 'hameau', 'hamster', 'hanche', 'handicap', 'hangar',
-    'hanter', 'happer', 'harasser', 'harceler', 'hardi', 'harem',
-    'hareng', 'haricot', 'harpe', 'hasard', 'hâte',
-    'hausse', 'haut', 'haute', 'hauts', 'hautes', 'hauteur', 'havre',
-    'hérisson', 'hernie', 'héron', 'héros', 'herse', 'hêtre',
-    'heurter', 'hibou', 'hiérarchie', 'hippie', 'hisser', 'hocher',
-    'hockey', 'hollande', 'homard', 'hongrie', 'honte', 'hoquet',
-    'horde', 'hors', 'hot', 'hotte', 'houblon', 'houille', 'houle',
-    'housse', 'hublot', 'huer', 'huit', 'huitième', 'hurler', 'hutte',
-    'hyène',
-})
+H_ASPIRE = frozenset(
+    {
+        "hache",
+        "haie",
+        "haine",
+        "hall",
+        "halte",
+        "halo",
+        "hamac",
+        "hameau",
+        "hamster",
+        "hanche",
+        "handicap",
+        "hangar",
+        "hanter",
+        "happer",
+        "harasser",
+        "harceler",
+        "hardi",
+        "harem",
+        "hareng",
+        "haricot",
+        "harpe",
+        "hasard",
+        "hâte",
+        "hausse",
+        "haut",
+        "haute",
+        "hauts",
+        "hautes",
+        "hauteur",
+        "havre",
+        "hérisson",
+        "hernie",
+        "héron",
+        "héros",
+        "herse",
+        "hêtre",
+        "heurter",
+        "hibou",
+        "hiérarchie",
+        "hippie",
+        "hisser",
+        "hocher",
+        "hockey",
+        "hollande",
+        "homard",
+        "hongrie",
+        "honte",
+        "hoquet",
+        "horde",
+        "hors",
+        "hot",
+        "hotte",
+        "houblon",
+        "houille",
+        "houle",
+        "housse",
+        "hublot",
+        "huer",
+        "huit",
+        "huitième",
+        "hurler",
+        "hutte",
+        "hyène",
+    }
+)
 
 ELISION_WORDS = {
-    'je': "j'", 'me': "m'", 'te': "t'", 'se': "s'",
-    'le': "l'", 'la': "l'", 'ne': "n'", 'de': "d'",
-    'que': "qu'", 'ce': "c'",
+    "je": "j'",
+    "me": "m'",
+    "te": "t'",
+    "se": "s'",
+    "le": "l'",
+    "la": "l'",
+    "ne": "n'",
+    "de": "d'",
+    "que": "qu'",
+    "ce": "c'",
 }
 
-_VOWELS = 'aeiouyàâäéèêëîïôöùûüÿæœ'
-_VOWEL_PATTERN = f'[{_VOWELS}{_VOWELS.upper()}]'
+_VOWELS = "aeiouyàâäéèêëîïôöùûüÿæœ"
+_VOWEL_PATTERN = f"[{_VOWELS}{_VOWELS.upper()}]"
 # h muet suivi de voyelle (mais PAS h aspiré)
-_H_MUET_VOWEL = f'[hH]{_VOWEL_PATTERN}'
+_H_MUET_VOWEL = f"[hH]{_VOWEL_PATTERN}"
 
 # Pré-compiler les patterns d'élision
 _H_ASPIRE_SORTED = sorted(H_ASPIRE, key=len, reverse=True)
-_H_ASPIRE_RE = '|'.join(re.escape(h) for h in _H_ASPIRE_SORTED)
+_H_ASPIRE_RE = "|".join(re.escape(h) for h in _H_ASPIRE_SORTED)
 _ELISION_PATTERNS = []
 for _word, _elided in ELISION_WORDS.items():
     # Matche : mot + espace + (voyelle OU h muet), sauf h aspiré
     _pat = re.compile(
-        rf'\b{re.escape(_word)}\s+(?!(?:{_H_ASPIRE_RE})\b)({_VOWEL_PATTERN}\w*|{_H_MUET_VOWEL}\w*)',
-        re.IGNORECASE
+        rf"\b{re.escape(_word)}\s+(?!(?:{_H_ASPIRE_RE})\b)({_VOWEL_PATTERN}\w*|{_H_MUET_VOWEL}\w*)",
+        re.IGNORECASE,
     )
     _ELISION_PATTERNS.append((_pat, _elided))
 
-_SI_IL_RE = re.compile(r'\bsi\s+(ils?)\b', re.IGNORECASE)
+_SI_IL_RE = re.compile(r"\bsi\s+(ils?)\b", re.IGNORECASE)
 
 
 def fix_elisions(text):
     """Corrige les élisions manquantes (je ai → j'ai) avec h aspirés."""
     for pattern, elided in _ELISION_PATTERNS:
+
         def _elide(m, e=elided):
             rest = m.group(1)
             # Préserver la casse : si le mot original commençait par majuscule
             # et l'élision est en début de phrase, garder la majuscule sur l'élision
-            return e + rest.lower() if rest[0].isupper() and len(rest) > 1 and rest[1:] == rest[1:].lower() else e + rest
+            return (
+                e + rest.lower()
+                if rest[0].isupper() and len(rest) > 1 and rest[1:] == rest[1:].lower()
+                else e + rest
+            )
+
         text = pattern.sub(_elide, text)
     text = _SI_IL_RE.sub(r"s'\1", text)
     return text
@@ -279,11 +346,12 @@ def fix_elisions(text):
 
 try:
     from text_to_num import alpha2digit
+
     _HAS_TEXT2NUM = True
 except ImportError:
     _HAS_TEXT2NUM = False
 
-_TEXT2NUM_LANGS = frozenset({'fr', 'en', 'es', 'pt', 'de', 'it', 'nl'})
+_TEXT2NUM_LANGS = frozenset({"fr", "en", "es", "pt", "de", "it", "nl"})
 
 
 def convert_numbers(text):
@@ -298,38 +366,40 @@ def convert_numbers(text):
 
 # ── Typographie française ────────────────────────────────────────────
 
-_NBSP = '\u00a0'     # espace insécable (avant :, après «, avant »)
-_NNBSP = '\u202f'    # espace fine insécable (avant ; ? !)
+_NBSP = "\u00a0"  # espace insécable (avant :, après «, avant »)
+_NNBSP = "\u202f"  # espace fine insécable (avant ; ? !)
 
 # Pré-compiler les patterns de typographie
-_TYPO_BEFORE_THIN = re.compile(r'(?<=\S)\s*([;!?])') # espace fine insécable avant ; ! ? (sauf début de ligne)
-_TYPO_BEFORE_COLON = re.compile(r'(?<=\S)\s*(:)')   # espace insécable avant : (sauf début de ligne)
-_TYPO_AFTER_LGUILL = re.compile(r'«\s*')           # espace après «
-_TYPO_BEFORE_RGUILL = re.compile(r'\s*»')          # espace avant »
-_TYPO_ELLIPSIS = re.compile(r'\.{3,}')             # ... → …
-_TYPO_EN_QUOTES = re.compile(r'"([^"]+)"')         # "x" → « x »
+_TYPO_BEFORE_THIN = re.compile(
+    r"(?<=\S)\s*([;!?])"
+)  # espace fine insécable avant ; ! ? (sauf début de ligne)
+_TYPO_BEFORE_COLON = re.compile(
+    r"(?<=\S)\s*(:)"
+)  # espace insécable avant : (sauf début de ligne)
+_TYPO_AFTER_LGUILL = re.compile(r"«\s*")  # espace après «
+_TYPO_BEFORE_RGUILL = re.compile(r"\s*»")  # espace avant »
+_TYPO_ELLIPSIS = re.compile(r"\.{3,}")  # ... → …
+_TYPO_EN_QUOTES = re.compile(r'"([^"]+)"')  # "x" → « x »
 
 
 def fix_french_typography(text):
     """Applique les règles typographiques françaises."""
     # Points de suspension
-    text = _TYPO_ELLIPSIS.sub('\u2026', text)
+    text = _TYPO_ELLIPSIS.sub("\u2026", text)
     # Guillemets anglais → français
-    text = _TYPO_EN_QUOTES.sub(f'\u00ab{_NBSP}\\1{_NBSP}\u00bb', text)
+    text = _TYPO_EN_QUOTES.sub(f"\u00ab{_NBSP}\\1{_NBSP}\u00bb", text)
     # Espaces insécables avant ponctuation haute
-    text = _TYPO_BEFORE_THIN.sub(f'{_NNBSP}\\1', text)
-    text = _TYPO_BEFORE_COLON.sub(f'{_NBSP}\\1', text)
+    text = _TYPO_BEFORE_THIN.sub(f"{_NNBSP}\\1", text)
+    text = _TYPO_BEFORE_COLON.sub(f"{_NBSP}\\1", text)
     # Espaces autour des guillemets
-    text = _TYPO_AFTER_LGUILL.sub(f'\u00ab{_NBSP}', text)
-    text = _TYPO_BEFORE_RGUILL.sub(f'{_NBSP}\u00bb', text)
+    text = _TYPO_AFTER_LGUILL.sub(f"\u00ab{_NBSP}", text)
+    text = _TYPO_BEFORE_RGUILL.sub(f"{_NBSP}\u00bb", text)
     return text
 
 
 # ── Chargement du dictionnaire ───────────────────────────────────────
 
-_DICT_RE = re.compile(
-    r"^\s*\[([a-z]{2}|\*)\]\s*(.+?)=(.+?)\s*$"
-)
+_DICT_RE = re.compile(r"^\s*\[([a-z]{2}|\*)\]\s*(.+?)=(.+?)\s*$")
 
 
 def _parse_dictionary(path):
@@ -375,6 +445,7 @@ def load_dictionary():
 # Import optionnel jellyfish pour matching phonétique
 try:
     import jellyfish
+
     _HAS_JELLYFISH = True
 except ImportError:
     _HAS_JELLYFISH = False
@@ -387,6 +458,7 @@ def apply_dictionary(text, entries, fuzzy=True):
     # Phase 1 : remplacement exact par regex (rapide)
     matched_spans = set()
     for word, word_re, replacement in entries:
+
         def _replace(m, repl=replacement):
             matched_spans.add((m.start(), m.end()))
             orig = m.group(0)
@@ -395,13 +467,14 @@ def apply_dictionary(text, entries, fuzzy=True):
             if orig[0].isupper():
                 return repl[0].upper() + repl[1:]
             return repl
+
         text = word_re.sub(_replace, text)
 
     # Phase 2 : matching phonétique jellyfish (si activé)
     if not fuzzy or not _HAS_JELLYFISH or not entries:
         return text
 
-    words_in_text = re.findall(r'\b[a-zA-ZÀ-ÿ]{2,}\b', text)
+    words_in_text = re.findall(r"\b[a-zA-ZÀ-ÿ]{2,}\b", text)
     if not words_in_text:
         return text
 
@@ -422,7 +495,8 @@ def apply_dictionary(text, entries, fuzzy=True):
         else:
             # Pas de break → pas de match exact → appliquer fuzzy
             if best_replacement:
-                pat = re.compile(r'\b' + re.escape(text_word) + r'\b')
+                pat = re.compile(r"\b" + re.escape(text_word) + r"\b")
+
                 def _fuzzy_replace(m, repl=best_replacement):
                     orig = m.group(0)
                     if orig.isupper():
@@ -430,6 +504,7 @@ def apply_dictionary(text, entries, fuzzy=True):
                     if orig[0].isupper():
                         return repl[0].upper() + repl[1:]
                     return repl
+
                 text = pat.sub(_fuzzy_replace, text)
 
     return text
@@ -437,8 +512,8 @@ def apply_dictionary(text, entries, fuzzy=True):
 
 # ── Capitalisation ───────────────────────────────────────────────────
 
-_CAP_AFTER_PUNCT = re.compile(r'([.!?\u2026])(\s+)([a-zà-ÿ])')
-_CAP_AFTER_NEWLINE = re.compile(r'(\n\s*)([a-zà-ÿ])')
+_CAP_AFTER_PUNCT = re.compile(r"([.!?\u2026])(\s+)([a-zà-ÿ])")
+_CAP_AFTER_NEWLINE = re.compile(r"(\n\s*)([a-zà-ÿ])")
 
 
 def fix_capitalization(text):
@@ -450,10 +525,10 @@ def fix_capitalization(text):
         text = text[0].upper() + text[1:]
     # Après . ! ? … — préserver les sauts de ligne
     text = _CAP_AFTER_PUNCT.sub(
-        lambda m: m.group(1) + m.group(2) + m.group(3).upper(), text)
+        lambda m: m.group(1) + m.group(2) + m.group(3).upper(), text
+    )
     # Après saut de ligne
-    text = _CAP_AFTER_NEWLINE.sub(
-        lambda m: m.group(1) + m.group(2).upper(), text)
+    text = _CAP_AFTER_NEWLINE.sub(lambda m: m.group(1) + m.group(2).upper(), text)
     return text
 
 
@@ -461,18 +536,44 @@ def fix_capitalization(text):
 
 DEFAULT_PROMPT = (
     "<role>\n"
-    "Ton rôle est de corriger une transcription provenant d'un ASR. "
-    "Tu n'es pas un assistant conversationnel.\n"
+    "You are a voice transcription post-processor. "
+    "You are NOT a conversational assistant.\n"
+    "You MUST output ONLY the processed text, nothing else.\n"
     "</role>\n"
-    "<instructions>\n"
-    "- Corrige l'orthographe et la grammaire.\n"
-    "- Supprime les répétitions et hésitations.\n"
-    "- Ne modifie jamais le sens ni le contenu.\n"
-    "- Ne réponds pas aux questions et ne les commente pas.\n"
-    "- Ne génère aucun commentaire ni introduction.\n"
-    "- Si tu ne sais pas ou qu'il n'y a rien à modifier, "
-    "renvoie la transcription telle quelle.\n"
-    "</instructions>\n"
+    "<task>\n"
+    "Analyze the transcription and apply ONE of two modes:\n"
+    "\n"
+    "MODE 1 - GRAMMAR FIX (apply when):\n"
+    "- The text is conversational or spoken language\n"
+    "- Contains self-corrections (e.g. 'I mean', 'actually', 'quer dizer', 'alias')\n"
+    "- Has broken reasoning that needs linearization\n"
+    "- Contains ASR errors, grammar mistakes, or wrong domain terms\n"
+    "\n"
+    "In this mode:\n"
+    "- Linearize self-corrections into clean flowing text\n"
+    "- Fix grammar, spelling, and punctuation\n"
+    "- Correct technical/domain terms using the additional context below\n"
+    "- NEVER change meaning or add information\n"
+    "- Remove repetitions and hesitations\n"
+    "\n"
+    "MODE 2 - BETTER TEXT (apply when AND ONLY WHEN you are CONFIDENT):\n"
+    "- The text is clearly an explanation or reasoning "
+    "(has beginning, development, conclusion)\n"
+    "- The speaker is constructing a structured argument\n"
+    "- You can confidently identify the logical flow\n"
+    "\n"
+    "In this mode:\n"
+    "- Improve clarity and robustness of the explanation\n"
+    "- Strengthen the reasoning structure\n"
+    "- Use precise vocabulary\n"
+    "- Keep the speaker's voice and intent\n"
+    "\n"
+    "IMPORTANT: If you are unsure which mode to apply, "
+    "ALWAYS use GRAMMAR FIX.\n"
+    "If you cannot confidently identify explanatory structure, "
+    "use GRAMMAR FIX.\n"
+    "Grammar Fix is the safe default.\n"
+    "</task>\n"
     "{additional_context}"
     "<input>{text}</input>"
 )
@@ -493,8 +594,21 @@ def _http_json(url, payload, headers, timeout):
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError, OSError):
-        return None
+    except urllib.error.HTTPError as exc:
+        body = ""
+        try:
+            body = exc.read().decode("utf-8", errors="replace")[:500]
+        except Exception:
+            pass
+        _llm_debug(f"http {exc.code} from {url}: {body}")
+    except (
+        urllib.error.URLError,
+        TimeoutError,
+        ValueError,
+        OSError,
+    ) as exc:
+        _llm_debug(f"http error from {url}: {exc}")
+    return None
 
 
 def ollama_postprocess(text, prompt, model, timeout):
@@ -502,19 +616,28 @@ def ollama_postprocess(text, prompt, model, timeout):
     if _env_bool("DICTEE_LLM_CPU", "false"):
         env["OLLAMA_NUM_GPU"] = "0"
     try:
-        result = subprocess.run(
-            ["ollama", "run", "--hidethinking", model, prompt],
-            capture_output=True, text=True, timeout=timeout, env=env,
+        proc = subprocess.Popen(
+            ["ollama", "run", "--hidethinking", model],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
         )
+        stdout, stderr = proc.communicate(input=prompt.encode("utf-8"), timeout=timeout)
+        stdout_text = stdout.decode("utf-8", errors="replace")
+        stderr_text = stderr.decode("utf-8", errors="replace")
         _llm_debug(
-            "ollama rc={} stdout_len={} stderr_len={}".format(
-                result.returncode,
-                len((result.stdout or "").strip()),
-                len((result.stderr or "").strip()),
+            "ollama rc={} stdout_len={} stderr_len={} prompt_len={}".format(
+                proc.returncode,
+                len(stdout_text.strip()),
+                len(stderr_text.strip()),
+                len(prompt),
             )
         )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
+        if proc.returncode != 0:
+            _llm_debug(f"ollama stderr: {stderr_text[:500]}")
+        if proc.returncode == 0 and stdout_text.strip():
+            return stdout_text.strip()
     except subprocess.TimeoutExpired:
         _llm_debug(f"ollama timeout after {timeout}s")
         return None
@@ -656,31 +779,48 @@ def groq_postprocess(text, prompt, model, timeout):
     return None
 
 
+def _chunk_text(text, max_chars=4000):
+    """Split text on sentence boundaries into chunks of max_chars."""
+    if len(text) <= max_chars:
+        return [text]
+    sentences = re.split(r"(?<=[.!?])\s+|\n", text)
+    chunks = []
+    current = ""
+    for sentence in sentences:
+        if not sentence.strip():
+            continue
+        if len(current) + len(sentence) + 1 > max_chars and current:
+            chunks.append(current.strip())
+            current = sentence
+        else:
+            current = current + " " + sentence if current else sentence
+    if current.strip():
+        chunks.append(current.strip())
+    return chunks if chunks else [text]
+
+
 def llm_postprocess(text):
-    """Envoie le texte au provider LLM configuré pour correction grammaticale."""
-    provider = os.environ.get("DICTEE_LLM_PROVIDER", "ollama").strip().lower() or "ollama"
+    """Envoie le texte au provider LLM configure pour correction grammaticale."""
+    provider = (
+        os.environ.get("DICTEE_LLM_PROVIDER", "ollama").strip().lower() or "ollama"
+    )
     model = os.environ.get("DICTEE_LLM_MODEL", "gemma3:4b")
-    timeout = _env_int("DICTEE_LLM_TIMEOUT", 10)
+    base_timeout = _env_int("DICTEE_LLM_TIMEOUT", 10)
     additional_context = os.environ.get("DICTEE_LLM_ADDITIONAL_CONTEXT", "").strip()
     additional_context_block = ""
     if additional_context:
         additional_context_block = (
-            "<additional_context>\n"
-            f"{additional_context}\n"
-            "</additional_context>\n"
+            f"<additional_context>\n{additional_context}\n</additional_context>\n"
         )
-    if VERBOSE:
-        LOGGER.debug(
-            "llm provider=%s model=%s timeout=%ss",
-            provider, model, timeout
-        )
-    _llm_debug(f"llm provider={provider} model={model} timeout={timeout}s")
-    prompt_tpl = _load_prompt()
-    prompt = prompt_tpl.format(
-        text=text,
-        additional_context=additional_context_block,
+
+    chunks = _chunk_text(text)
+    needs_chunking = len(chunks) > 1
+    _llm_debug(
+        f"llm provider={provider} model={model} base_timeout={base_timeout}s "
+        f"text_len={len(text)} chunks={len(chunks)}"
     )
 
+    prompt_tpl = _load_prompt()
     handlers = {
         "ollama": ollama_postprocess,
         "openai": openai_postprocess,
@@ -691,30 +831,42 @@ def llm_postprocess(text):
         "groq": groq_postprocess,
     }
     handler = handlers.get(provider, ollama_postprocess)
-    try:
-        corrected = handler(text, prompt, model, timeout)
-        if corrected:
-            if VERBOSE:
-                LOGGER.debug("llm output accepted")
-            _llm_debug("llm output accepted")
-            return corrected
-        if VERBOSE:
-            LOGGER.debug("llm returned empty output; keeping original text")
-        _llm_debug("llm returned empty output; keeping original text")
-    except Exception as exc:
-        if VERBOSE:
-            LOGGER.debug("llm failed (%s); keeping original text", exc)
-        _llm_debug(f"llm failed ({exc}); keeping original text")
-    return text  # fallback : texte inchangé
+
+    results = []
+    for chunk in chunks:
+        timeout = min(base_timeout + (len(chunk) / 1000) * 2, 60)
+        prompt = prompt_tpl.format(
+            text=chunk,
+            additional_context=additional_context_block,
+        )
+        _llm_debug(f"chunk len={len(chunk)} timeout={timeout:.1f}s")
+        try:
+            corrected = handler(chunk, prompt, model, timeout)
+            if corrected:
+                results.append(corrected)
+            else:
+                _llm_debug("chunk returned empty; keeping original")
+                results.append(chunk)
+        except Exception as exc:
+            _llm_debug(f"chunk failed ({exc}); keeping original")
+            results.append(chunk)
+
+    final = "\n".join(results) if needs_chunking else results[0]
+    if VERBOSE:
+        LOGGER.debug("llm output accepted, chunks=%d", len(chunks))
+    _llm_debug("llm output accepted")
+    return final
 
 
 # ── Main ─────────────────────────────────────────────────────────────
+
 
 def main():
     global VERBOSE
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="affiche les étapes internes de post-traitement (stderr)",
     )
@@ -731,7 +883,7 @@ def main():
         LOGGER.debug("start lang=%s", LANG or "auto")
         LOGGER.debug("input raw len=%d preview=%r", len(text), _preview_text(text))
     # Supprimer le \n ajouté par echo (mais garder les \n intentionnels)
-    if text.endswith('\n'):
+    if text.endswith("\n"):
         text = text[:-1]
     if not text.strip():
         if VERBOSE:
@@ -758,25 +910,46 @@ def main():
     # mais préserver les \n de fin (commandes vocales "à la ligne")
     start = time.perf_counter()
     before = text
-    text = text.lstrip(' \t').rstrip(' \t')
+    text = text.lstrip(" \t").rstrip(" \t")
     _log_stage("trim", before, text, (time.perf_counter() - start) * 1000.0)
 
     # 5b. Rejet mauvaise langue (après les règles, qui ont pu convertir les commandes connues)
     if LANG:
-        _LATIN_LANGS = {"fr", "en", "de", "es", "it", "pt", "nl", "pl", "ro", "cs", "sv", "da", "no", "fi", "hu", "tr"}
+        _LATIN_LANGS = {
+            "fr",
+            "en",
+            "de",
+            "es",
+            "it",
+            "pt",
+            "nl",
+            "pl",
+            "ro",
+            "cs",
+            "sv",
+            "da",
+            "no",
+            "fi",
+            "hu",
+            "tr",
+        }
         _CYRILLIC_LANGS = {"ru", "uk", "bg", "sr", "mk", "be"}
         letters = [c for c in text if c.isalpha()]
         if letters:
-            cyrillic = sum(1 for c in letters if '\u0400' <= c <= '\u04ff')
+            cyrillic = sum(1 for c in letters if "\u0400" <= c <= "\u04ff")
             ratio = cyrillic / len(letters)
             if LANG in _LATIN_LANGS and ratio > 0.5:
                 if VERBOSE:
-                    LOGGER.debug("language reject: latin expected, cyrillic ratio=%.3f", ratio)
+                    LOGGER.debug(
+                        "language reject: latin expected, cyrillic ratio=%.3f", ratio
+                    )
                 sys.stdout.write("")
                 return
             if LANG in _CYRILLIC_LANGS and ratio < 0.2:
                 if VERBOSE:
-                    LOGGER.debug("language reject: cyrillic expected, cyrillic ratio=%.3f", ratio)
+                    LOGGER.debug(
+                        "language reject: cyrillic expected, cyrillic ratio=%.3f", ratio
+                    )
                 sys.stdout.write("")
                 return
 
@@ -808,10 +981,15 @@ def main():
     before = text
     dictionary = load_dictionary()
     if VERBOSE:
-        LOGGER.debug("dictionary entries=%d fuzzy=%s", len(dictionary), _env_bool("DICTEE_PP_FUZZY_DICT"))
+        LOGGER.debug(
+            "dictionary entries=%d fuzzy=%s",
+            len(dictionary),
+            _env_bool("DICTEE_PP_FUZZY_DICT"),
+        )
     if dictionary:
         text = apply_dictionary(
-            text, dictionary,
+            text,
+            dictionary,
             fuzzy=_env_bool("DICTEE_PP_FUZZY_DICT"),
         )
     _log_stage("dictionary", before, text, (time.perf_counter() - start) * 1000.0)
@@ -821,7 +999,9 @@ def main():
         start = time.perf_counter()
         before = text
         text = fix_capitalization(text)
-        _log_stage("capitalization", before, text, (time.perf_counter() - start) * 1000.0)
+        _log_stage(
+            "capitalization", before, text, (time.perf_counter() - start) * 1000.0
+        )
 
     # 12. Correction LLM (optionnelle)
     if _env_bool("DICTEE_LLM_POSTPROCESS", "false"):
