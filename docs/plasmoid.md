@@ -1,22 +1,22 @@
 # Widget KDE Plasma 6
 
-[Retour au README principal](../README.md)
+[Back to main README](../README.md)
 
 ---
 
-Widget natif KDE Plasma 6 avec visualisation audio en temps réel, état du daemon, et contrôles rapides.
+Native KDE Plasma 6 widget with real-time audio visualization, daemon status, and quick controls.
 
 ## Installation
 
 ```bash
-# Inclus dans le .deb, ou manuellement :
+# Included in the .deb, or manually:
 kpackagetool6 -t Plasma/Applet -i /usr/share/dictee/dictee.plasmoid
 
-# Mettre à jour
+# Update
 kpackagetool6 -t Plasma/Applet -u /usr/share/dictee/dictee.plasmoid
 ```
 
-Clic droit sur le panneau → « Ajouter des composants graphiques… » → chercher « Dictée ».
+Right-click on panel → 'Add Widgets…' → search for 'Dictée'.
 
 ## Styles d'animation
 

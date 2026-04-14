@@ -25,14 +25,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let args: Vec<String> = env::args().collect();
 
         if args.iter().any(|a| a == "--help" || a == "-h") {
-            eprintln!("transcribe-diarize - Transcription + identification des locuteurs");
+            eprintln!("transcribe-diarize - Transcription + speaker identification");
             eprintln!();
             eprintln!("Usage: transcribe-diarize <audio> [model_dir] [sortformer_dir]");
             eprintln!();
             eprintln!("Arguments:");
-            eprintln!("  <audio>          Fichier audio (tout format supporté par ffmpeg)");
-            eprintln!("  [model_dir]      Répertoire du modèle TDT (défaut: /usr/share/dictee/tdt)");
-            eprintln!("  [sortformer_dir] Répertoire Sortformer (défaut: /usr/share/dictee/sortformer)");
+            eprintln!("  <audio>          Audio file (any format supported by ffmpeg)");
+            eprintln!("  [model_dir]      TDT model directory (default: /usr/share/dictee/tdt)");
+            eprintln!(
+                "  [sortformer_dir] Sortformer directory (default: /usr/share/dictee/sortformer)"
+            );
             return Ok(());
         }
 
@@ -45,8 +47,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let audio_path = resolve_path(&args[1])?;
-        let model_dir = args.get(2).map(|s| s.as_str()).unwrap_or("/usr/share/dictee/tdt");
-        let sortformer_dir = args.get(3).map(|s| s.as_str()).unwrap_or("/usr/share/dictee/sortformer");
+        let model_dir = args
+            .get(2)
+            .map(|s| s.as_str())
+            .unwrap_or("/usr/share/dictee/tdt");
+        let sortformer_dir = args
+            .get(3)
+            .map(|s| s.as_str())
+            .unwrap_or("/usr/share/dictee/sortformer");
 
         // Convert to WAV 16kHz mono if needed
         let (wav_path, needs_cleanup) = ensure_wav(&audio_path)?;
@@ -74,7 +82,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let config = ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cpu);
 
         // Load Sortformer for diarization
-        let sortformer_path = format!("{}/diar_streaming_sortformer_4spk-v2.1.onnx", sortformer_dir);
+        let sortformer_path = format!(
+            "{}/diar_streaming_sortformer_4spk-v2.1.onnx",
+            sortformer_dir
+        );
         let mut sortformer = Sortformer::with_config(
             &sortformer_path,
             Some(config.clone()),
@@ -82,7 +93,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?;
 
         // Get speaker segments
-        let speaker_segments = sortformer.diarize(audio.clone(), spec.sample_rate, spec.channels)?;
+        let speaker_segments =
+            sortformer.diarize(audio.clone(), spec.sample_rate, spec.channels)?;
 
         // Load TDT for transcription
         let mut parakeet = ParakeetTDT::from_pretrained(model_dir, Some(config))?;
@@ -113,7 +125,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .map(|(id, _)| format!("Speaker {}", id))
                 .unwrap_or_else(|| "UNKNOWN".to_string());
 
-            println!("[{:.2}s - {:.2}s] {}: {}", segment.start, segment.end, speaker, segment.text);
+            println!(
+                "[{:.2}s - {:.2}s] {}: {}",
+                segment.start, segment.end, speaker, segment.text
+            );
         }
 
         Ok(())
@@ -128,14 +143,15 @@ fn resolve_path(path: &str) -> Result<String, Box<dyn std::error::Error>> {
     } else {
         path.to_string()
     };
-    let canonical = fs::canonicalize(&expanded)
-        .map_err(|e| format!("{}: {}", expanded, e))?;
+    let canonical = fs::canonicalize(&expanded).map_err(|e| format!("{}: {}", expanded, e))?;
     Ok(canonical.to_string_lossy().into_owned())
 }
 
 #[cfg(feature = "sortformer")]
 fn is_wav_16k_mono(path: &str) -> bool {
-    let Ok(reader) = hound::WavReader::open(path) else { return false };
+    let Ok(reader) = hound::WavReader::open(path) else {
+        return false;
+    };
     let spec = reader.spec();
     spec.sample_rate == 16000 && spec.channels == 1
 }
@@ -147,15 +163,36 @@ fn ensure_wav(audio_path: &str) -> Result<(String, bool), Box<dyn std::error::Er
     }
 
     let status = Command::new("ffmpeg")
-        .args(["-y", "-i", audio_path, "-ar", "16000", "-ac", "1", "-f", "wav", TEMP_CONVERTED])
+        .args([
+            "-y",
+            "-i",
+            audio_path,
+            "-ar",
+            "16000",
+            "-ac",
+            "1",
+            "-f",
+            "wav",
+            TEMP_CONVERTED,
+        ])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
-        .map_err(|e| format!("ffmpeg not found: {}. Install ffmpeg to convert audio files.", e))?;
+        .map_err(|e| {
+            format!(
+                "ffmpeg not found: {}. Install ffmpeg to convert audio files.",
+                e
+            )
+        })?;
 
     if !status.success() {
-        return Err(format!("ffmpeg failed to convert '{}' (exit code: {:?})", audio_path, status.code()).into());
+        return Err(format!(
+            "ffmpeg failed to convert '{}' (exit code: {:?})",
+            audio_path,
+            status.code()
+        )
+        .into());
     }
 
     Ok((TEMP_CONVERTED.to_string(), true))

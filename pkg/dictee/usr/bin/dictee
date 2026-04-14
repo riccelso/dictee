@@ -869,21 +869,53 @@ else
         fi
     fi
 
+    # Démarrer l'animation (si mode speech ou both, et si disponible)
+    if [ "$ANIMATION" = "speech" ] || [ "$ANIMATION" = "both" ]; then
+        if command -v animation-speech-ctl >/dev/null 2>&1; then
+            SCRIPT_PATH="$(readlink -f "$0")"
+            if animation-speech-ctl launch --on-escape "$SCRIPT_PATH --cancel" 2>/dev/null; then true; fi
+        fi
+    fi
+
+    # Notification d'initiation (affichée AVANT pw-record pour prévenir le court délai)
+    if [ "$TRANSLATE" = true ]; then
+        notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Recording initiating $LANG_LABEL ($TRANSLATE_BACKEND) [$GPU_LABEL]" >"$ID_TMP_FILE"
+    else
+        notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Recording initiating [$GPU_LABEL]" >"$ID_TMP_FILE"
+    fi
+
     # Démarrer l'enregistrement EN PREMIER (avant notification/plasmoid pour ne rien perdre)
     pw-record --rate 16000 --channels 1 --format s16 "$RECORDING_FILE" &
     echo $! >"$PIDFILE"
 
-    # Attendre que pw-record soit connecté à PipeWire (~200ms de latence de démarrage)
-    # La notification sert de délai naturel : l'utilisateur attend le retour visuel
-    # avant de parler, ce qui laisse le temps à pw-record de démarrer
+    # Attendre que pw-record soit connecté à PipeWire et capturant l'audio
+    # Active wait: vérifier périodiquement que le fichier est en cours d'écriture
+    RECORDING_STARTED=false
+    MAX_WAIT_SECONDS=2
+    WAIT_INTERVAL_MS=50
+    for ((i=0; i<MAX_WAIT_SECONDS*1000/WAIT_INTERVAL_MS; i++)); do
+        if [ -f "$RECORDING_FILE" ] && [ -s "$RECORDING_FILE" ]; then
+            RECORDING_STARTED=true
+            break
+        fi
+        sleep 0.05
+    done
 
     # Signaler au plasmoid
     write_state "recording"
 
-    # Notification (sert aussi de délai pour pw-record)
+    # Notification (affichée APRÈS confirmation de capture)
     if [ "$TRANSLATE" = true ]; then
-        notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Recording $LANG_LABEL ($TRANSLATE_BACKEND) [$GPU_LABEL]" >"$ID_TMP_FILE"
+        if [ "$RECORDING_STARTED" = true ]; then
+            notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Recording $LANG_LABEL ($TRANSLATE_BACKEND) [$GPU_LABEL]" >"$ID_TMP_FILE"
+        else
+            notify-send -p -t 0 -i audio-input-microphone-symbolic -a Dictee "Warning: Recording could not be started" >"$ID_TMP_FILE"
+        fi
     else
-        notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Recording started [$GPU_LABEL]" >"$ID_TMP_FILE"
+        if [ "$RECORDING_STARTED" = true ]; then
+            notify-send -p -t 0 -i audio-chat-symbolic -a Dictee "Recording started [$GPU_LABEL]" >"$ID_TMP_FILE"
+        else
+            notify-send -p -t 0 -i audio-input-microphone-symbolic -a Dictee "Warning: Recording could not be started" >"$ID_TMP_FILE"
+        fi
     fi
 fi

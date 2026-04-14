@@ -1,14 +1,14 @@
 # Compilation depuis les sources
 
-[Retour au README principal](../README.md)
+[Back to main README](../README.md)
 
 ---
 
-## Prérequis
+## Prerequisites
 
 - **Rust** (edition 2021)
-- **ffmpeg** (pour la conversion des formats audio)
-- **Go** + **scdoc** + **libxkbcommon-dev** (pour dotool)
+- **ffmpeg** (for audio format conversion)
+- **Go** + **scdoc** + **libxkbcommon-dev** (for dotool)
 
 ## Build
 
@@ -23,17 +23,17 @@ cargo build --release --features "cuda,sortformer"
 ./build-deb.sh
 ```
 
-## Features Cargo
+## Cargo features
 
 | Feature | Description |
 |---------|-------------|
-| `cpu` | Exécution CPU (défaut) |
-| `cuda` | GPU NVIDIA via CUDA |
-| `tensorrt` | Optimisation TensorRT |
+| `cpu` | CPU execution (default) |
+| `cuda` | NVIDIA GPU via CUDA |
+| `tensorrt` | TensorRT optimization |
 | `coreml` | Apple CoreML |
 | `directml` | Microsoft DirectML |
 | `openvino` | Intel OpenVINO |
-| `sortformer` | Diarisation (nécessaire pour `*-diarize`) |
+| `sortformer` | Diarization (required for `*-diarize`) |
 
 ## Tests
 
@@ -42,7 +42,7 @@ cargo test
 cargo test --features sortformer
 ```
 
-## Pipeline audio (architecture interne)
+## Audio pipeline (internal architecture)
 
 ```
 Audio (tout format)

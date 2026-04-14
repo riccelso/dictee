@@ -1,33 +1,33 @@
 #!/usr/bin/python3
-"""dictee-postprocess — filtre post-traitement pour la dictée vocale.
+"""dictee-postprocess — post-processing filter for voice dictation.
 
-Lit le texte transcrit sur stdin, applique séquentiellement :
-  1.  Règles regex (annotations, hésitations, commandes vocales, dédup, ponctuation, élisions)
-  2.  Élisions françaises avancées (avec h aspirés)
-  3.  Conversion nombres en chiffres (text2num, optionnel)
-  4.  Typographie française (espaces insécables)
-  5.  Dictionnaire (système + personnel, avec matching phonétique jellyfish)
-  6.  Capitalisation
-  7.  Correction LLM optionnelle (ollama / OpenAI / OpenRouter / Google Gemini / Claude / Groq)
+Reads transcribed text from stdin, applies sequentially:
+  1.  Regex rules (annotations, hesitations, voice commands, dedup, punctuation, elisions)
+  2.  Advanced French elisions (with aspirated h)
+  3.  Number-to-digit conversion (text2num, optional)
+  4.  French typography (non-breaking spaces)
+  5.  Dictionary (system + personal, with jellyfish phonetic matching)
+  6.  Capitalization
+  7.  Optional LLM correction (ollama / OpenAI / OpenRouter / Google Gemini / Claude / Groq)
 
-Écrit le résultat sur stdout.
+Writes the result to stdout.
 
-Configuration via variables d'environnement :
-  DICTEE_LANG_SOURCE       — langue source (fr, en, de, ...) pour filtrer les règles
-  DICTEE_PP_ELISIONS       — true/false (défaut: true)  — élisions françaises avancées
-  DICTEE_PP_NUMBERS        — true/false (défaut: true)  — conversion nombres→chiffres
-  DICTEE_PP_TYPOGRAPHY     — true/false (défaut: true)  — typographie française
-  DICTEE_PP_CAPITALIZATION — true/false (défaut: true)  — capitalisation automatique
-  DICTEE_PP_FUZZY_DICT     — true/false (défaut: true)  — matching phonétique dictionnaire
-  DICTEE_LLM_POSTPROCESS   — true/false (défaut: false) — correction LLM
-  DICTEE_LLM_PROVIDER      — ollama/openai/openrouter/gemini/anthropic/groq (défaut: ollama)
-  DICTEE_LLM_MODEL         — modèle LLM (défaut: gemma3:4b)
-  DICTEE_LLM_TIMEOUT       — timeout en secondes (défaut: 10)
-  DICTEE_LLM_CPU           — true/false (ollama uniquement)
-  DICTEE_LLM_ADDITIONAL_CONTEXT — contexte additionnel injecté dans le prompt LLM
-  DICTEE_LLM_DEBUG         — true/false (logs LLM détaillés sur stderr)
+Configuration via environment variables:
+  DICTEE_LANG_SOURCE       — source language (fr, en, de, ...) for filtering rules
+  DICTEE_PP_ELISIONS       — true/false (default: true)  — advanced French elisions
+  DICTEE_PP_NUMBERS        — true/false (default: true)  — number-to-digit conversion
+  DICTEE_PP_TYPOGRAPHY     — true/false (default: true)  — French typography
+  DICTEE_PP_CAPITALIZATION — true/false (default: true)  — automatic capitalization
+  DICTEE_PP_FUZZY_DICT     — true/false (default: true)  — dictionary phonetic matching
+  DICTEE_LLM_POSTPROCESS   — true/false (default: false) — LLM correction
+  DICTEE_LLM_PROVIDER      — ollama/openai/openrouter/gemini/anthropic/groq (default: ollama)
+  DICTEE_LLM_MODEL         — LLM model (default: gemma3:4b)
+  DICTEE_LLM_TIMEOUT       — timeout in seconds (default: 10)
+  DICTEE_LLM_CPU           — true/false (ollama only)
+  DICTEE_LLM_ADDITIONAL_CONTEXT — additional context injected into the LLM prompt
+  DICTEE_LLM_DEBUG         — true/false (detailed LLM logs on stderr)
 
-Clés API distantes lues depuis l'environnement :
+Remote API keys read from the environment:
   OPENAI_API_KEY / OPENROUTER_API_KEY / GOOGLE_API_KEY / GEMINI_API_KEY / ANTHROPIC_API_KEY / GROQ_API_KEY
 """
 
@@ -58,7 +58,7 @@ _VENV_SITE = os.path.join(
 if os.path.isdir(_VENV_SITE) and _VENV_SITE not in sys.path:
     sys.path.insert(0, _VENV_SITE)
 
-# ── Chemins ──────────────────────────────────────────────────────────
+# ── Paths ─────────────────────────────────────────────────────────────
 
 XDG_CONFIG = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
 
@@ -85,12 +85,12 @@ VERBOSE = False
 
 
 def _env_bool(var, default="true"):
-    """Lit une variable d'environnement booléenne."""
+    """Reads a boolean environment variable."""
     return os.environ.get(var, default).lower() == "true"
 
 
 def _env_int(var, default):
-    """Lit une variable d'environnement entière."""
+    """Reads an integer environment variable."""
     try:
         return int(os.environ.get(var, str(default)))
     except (TypeError, ValueError):
@@ -98,7 +98,7 @@ def _env_int(var, default):
 
 
 def _configure_logging(verbose=False):
-    """Configure le logger du script."""
+    """Configure the script logger."""
     level = logging.DEBUG if verbose else logging.WARNING
     logging.basicConfig(
         level=level,
@@ -108,7 +108,7 @@ def _configure_logging(verbose=False):
 
 
 def _preview_text(text, max_len=120):
-    """Retourne un aperçu compact du texte pour logs."""
+    """Returns a compact preview of the text for logging."""
     escaped = text.replace("\n", "\\n")
     if len(escaped) <= max_len:
         return escaped
@@ -116,7 +116,7 @@ def _preview_text(text, max_len=120):
 
 
 def _log_stage(name, before, after, elapsed_ms):
-    """Log standard d'une étape de pipeline."""
+    """Standard log for a pipeline stage."""
     if not VERBOSE:
         return
     changed = before != after
@@ -134,21 +134,21 @@ def _log_stage(name, before, after, elapsed_ms):
 
 
 def _llm_debug(msg):
-    """Log LLM debug indépendant du mode verbose pipeline."""
+    """LLM debug log independent of pipeline verbose mode."""
     if _env_bool("DICTEE_LLM_DEBUG", "false"):
         print(f"[dictee-postprocess] {msg}", file=sys.stderr)
 
 
-# ── Chargement des règles regex ──────────────────────────────────────
+# ── Loading regex rules ──────────────────────────────────────────────
 
 _RULE_RE = re.compile(r"^\s*\[([a-z]{2}|\*)\]\s*/(.+)/(.+)/([igm]*)\s*$")
 
-# Règles avec remplacement vide : /PATTERN//FLAGS
+# Rules with empty replacement: /PATTERN//FLAGS
 _RULE_EMPTY_RE = re.compile(r"^\s*\[([a-z]{2}|\*)\]\s*/(.+)//([igm]*)\s*$")
 
 
 def _parse_rules(path):
-    """Parse un fichier de règles, retourne [(pattern_compiled, replacement)]."""
+    """Parse a rules file, returns [(pattern_compiled, replacement)]."""
     rules = []
     if not os.path.isfile(path):
         return rules
@@ -157,7 +157,7 @@ def _parse_rules(path):
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            # Essayer d'abord le remplacement vide
+            # Try empty replacement first
             m = _RULE_EMPTY_RE.match(line)
             if m:
                 lang_tag, pattern, flags_str = m.groups()
@@ -167,7 +167,7 @@ def _parse_rules(path):
                 if not m:
                     continue
                 lang_tag, pattern, replacement, flags_str = m.groups()
-            # Filtrer par langue
+            # Filter by language
             if lang_tag != "*" and LANG and lang_tag != LANG:
                 continue
             flags = 0
@@ -175,8 +175,8 @@ def _parse_rules(path):
                 flags |= re.IGNORECASE
             if "m" in flags_str:
                 flags |= re.MULTILINE
-            # \s dans les classes [,.\s] ne doit pas manger les \n produits par d'autres règles
-            # Remplacer \s par \t  (espace + tab) dans les classes de caractères
+            # \s in character classes [,.\s] should not consume \n produced by other rules
+            # Replace \s with \t (space + tab) in character classes
             pattern = re.sub(
                 r"\[([^\]]*?)\\s([^\]]*?)\]",
                 lambda m: "[" + m.group(1) + r" \t" + m.group(2) + "]",
@@ -186,7 +186,7 @@ def _parse_rules(path):
                 compiled = re.compile(pattern, flags)
             except re.error:
                 continue
-            # Convertir les séquences d'échappement dans le remplacement
+            # Convert escape sequences in the replacement
             replacement = (
                 replacement.replace("\\n", "\n")
                 .replace("\\t", "\t")
@@ -202,7 +202,7 @@ def _parse_rules(path):
 
 
 def load_rules():
-    """Charge les règles système puis utilisateur."""
+    """Load system rules, then user rules."""
     rules = []
     for candidate in SYSTEM_RULES_CANDIDATES:
         if os.path.isfile(candidate):
@@ -213,15 +213,15 @@ def load_rules():
 
 
 def apply_rules(text, rules):
-    """Applique les règles regex séquentiellement."""
+    """Apply regex rules sequentially."""
     for pattern, replacement in rules:
         text = pattern.sub(replacement, text)
     return text
 
 
-# ── Élisions françaises avancées ─────────────────────────────────────
+# ── Advanced French elisions ─────────────────────────────────────────
 
-# Mots commençant par h aspiré (PAS d'élision)
+# Words starting with aspirated h (NO elision)
 H_ASPIRE = frozenset(
     {
         "hache",
@@ -305,15 +305,15 @@ ELISION_WORDS = {
 
 _VOWELS = "aeiouyàâäéèêëîïôöùûüÿæœ"
 _VOWEL_PATTERN = f"[{_VOWELS}{_VOWELS.upper()}]"
-# h muet suivi de voyelle (mais PAS h aspiré)
+# mute h followed by a vowel (but NOT aspirated h)
 _H_MUET_VOWEL = f"[hH]{_VOWEL_PATTERN}"
 
-# Pré-compiler les patterns d'élision
+# Pre-compile elision patterns
 _H_ASPIRE_SORTED = sorted(H_ASPIRE, key=len, reverse=True)
 _H_ASPIRE_RE = "|".join(re.escape(h) for h in _H_ASPIRE_SORTED)
 _ELISION_PATTERNS = []
 for _word, _elided in ELISION_WORDS.items():
-    # Matche : mot + espace + (voyelle OU h muet), sauf h aspiré
+    # Matches: word + space + (vowel OR mute h), except aspirated h
     _pat = re.compile(
         rf"\b{re.escape(_word)}\s+(?!(?:{_H_ASPIRE_RE})\b)({_VOWEL_PATTERN}\w*|{_H_MUET_VOWEL}\w*)",
         re.IGNORECASE,
@@ -324,13 +324,13 @@ _SI_IL_RE = re.compile(r"\bsi\s+(ils?)\b", re.IGNORECASE)
 
 
 def fix_elisions(text):
-    """Corrige les élisions manquantes (je ai → j'ai) avec h aspirés."""
+    """Fix missing elisions (je ai → j'ai) with aspirated h support."""
     for pattern, elided in _ELISION_PATTERNS:
 
         def _elide(m, e=elided):
             rest = m.group(1)
-            # Préserver la casse : si le mot original commençait par majuscule
-            # et l'élision est en début de phrase, garder la majuscule sur l'élision
+            # Preserve case: if the original word started with uppercase
+            # and the elision is at the start of a sentence, keep the uppercase on the elision
             return (
                 e + rest.lower()
                 if rest[0].isupper() and len(rest) > 1 and rest[1:] == rest[1:].lower()
@@ -342,7 +342,7 @@ def fix_elisions(text):
     return text
 
 
-# ── Conversion nombres (text2num) ────────────────────────────────────
+# ── Number conversion (text2num) ─────────────────────────────────────
 
 try:
     from text_to_num import alpha2digit
@@ -355,7 +355,7 @@ _TEXT2NUM_LANGS = frozenset({"fr", "en", "es", "pt", "de", "it", "nl"})
 
 
 def convert_numbers(text):
-    """Convertit les nombres en toutes lettres en chiffres."""
+    """Convert spelled-out numbers to digits."""
     if not _HAS_TEXT2NUM or LANG not in _TEXT2NUM_LANGS:
         return text
     try:
@@ -364,46 +364,46 @@ def convert_numbers(text):
         return text
 
 
-# ── Typographie française ────────────────────────────────────────────
+# ── French typography ────────────────────────────────────────────────
 
-_NBSP = "\u00a0"  # espace insécable (avant :, après «, avant »)
-_NNBSP = "\u202f"  # espace fine insécable (avant ; ? !)
+_NBSP = "\u00a0"  # non-breaking space (before :, after «, before »)
+_NNBSP = "\u202f"  # narrow non-breaking space (before ; ? !)
 
-# Pré-compiler les patterns de typographie
+# Pre-compile typography patterns
 _TYPO_BEFORE_THIN = re.compile(
     r"(?<=\S)\s*([;!?])"
-)  # espace fine insécable avant ; ! ? (sauf début de ligne)
+)  # narrow non-breaking space before ; ! ? (except at start of line)
 _TYPO_BEFORE_COLON = re.compile(
     r"(?<=\S)\s*(:)"
-)  # espace insécable avant : (sauf début de ligne)
-_TYPO_AFTER_LGUILL = re.compile(r"«\s*")  # espace après «
-_TYPO_BEFORE_RGUILL = re.compile(r"\s*»")  # espace avant »
+)  # non-breaking space before : (except at start of line)
+_TYPO_AFTER_LGUILL = re.compile(r"«\s*")  # space after «
+_TYPO_BEFORE_RGUILL = re.compile(r"\s*»")  # space before »
 _TYPO_ELLIPSIS = re.compile(r"\.{3,}")  # ... → …
 _TYPO_EN_QUOTES = re.compile(r'"([^"]+)"')  # "x" → « x »
 
 
 def fix_french_typography(text):
-    """Applique les règles typographiques françaises."""
-    # Points de suspension
+    """Apply French typographic rules."""
+    # Ellipsis
     text = _TYPO_ELLIPSIS.sub("\u2026", text)
-    # Guillemets anglais → français
+    # English quotes → French quotes
     text = _TYPO_EN_QUOTES.sub(f"\u00ab{_NBSP}\\1{_NBSP}\u00bb", text)
-    # Espaces insécables avant ponctuation haute
+    # Non-breaking spaces before high punctuation
     text = _TYPO_BEFORE_THIN.sub(f"{_NNBSP}\\1", text)
     text = _TYPO_BEFORE_COLON.sub(f"{_NBSP}\\1", text)
-    # Espaces autour des guillemets
+    # Spaces around guillemets
     text = _TYPO_AFTER_LGUILL.sub(f"\u00ab{_NBSP}", text)
     text = _TYPO_BEFORE_RGUILL.sub(f"{_NBSP}\u00bb", text)
     return text
 
 
-# ── Chargement du dictionnaire ───────────────────────────────────────
+# ── Dictionary loading ───────────────────────────────────────────────
 
 _DICT_RE = re.compile(r"^\s*\[([a-z]{2}|\*)\]\s*(.+?)=(.+?)\s*$")
 
 
 def _parse_dictionary(path):
-    """Parse un fichier de dictionnaire, retourne [(word, word_re, replacement)]."""
+    """Parse a dictionary file, returns [(word, word_re, replacement)]."""
     entries = []
     if not os.path.isfile(path):
         return entries
@@ -432,7 +432,7 @@ def _parse_dictionary(path):
 
 
 def load_dictionary():
-    """Charge le dictionnaire système puis utilisateur."""
+    """Load system dictionary, then user dictionary."""
     entries = []
     for candidate in SYSTEM_DICT_CANDIDATES:
         if os.path.isfile(candidate):
@@ -442,7 +442,7 @@ def load_dictionary():
     return entries
 
 
-# Import optionnel jellyfish pour matching phonétique
+# Optional jellyfish import for phonetic matching
 try:
     import jellyfish
 
@@ -454,8 +454,8 @@ _FUZZY_THRESHOLD = 0.85
 
 
 def apply_dictionary(text, entries, fuzzy=True):
-    """Applique le dictionnaire avec préservation de casse + fallback phonétique."""
-    # Phase 1 : remplacement exact par regex (rapide)
+    """Apply dictionary with case preservation + phonetic fallback."""
+    # Phase 1: exact replacement via regex (fast)
     matched_spans = set()
     for word, word_re, replacement in entries:
 
@@ -470,7 +470,7 @@ def apply_dictionary(text, entries, fuzzy=True):
 
         text = word_re.sub(_replace, text)
 
-    # Phase 2 : matching phonétique jellyfish (si activé)
+    # Phase 2: jellyfish phonetic matching (if enabled)
     if not fuzzy or not _HAS_JELLYFISH or not entries:
         return text
 
@@ -478,7 +478,7 @@ def apply_dictionary(text, entries, fuzzy=True):
     if not words_in_text:
         return text
 
-    # Construire un index des clés du dictionnaire
+    # Build an index of dictionary keys
     dict_keys = [(w.lower(), replacement) for w, _, replacement in entries]
 
     for text_word in set(words_in_text):
@@ -487,13 +487,13 @@ def apply_dictionary(text, entries, fuzzy=True):
         best_replacement = None
         for dict_word, replacement in dict_keys:
             if dict_word == text_word_lower:
-                break  # déjà matché en phase 1
+                break  # already matched in phase 1
             score = jellyfish.jaro_winkler_similarity(text_word_lower, dict_word)
             if score > best_score and score >= _FUZZY_THRESHOLD:
                 best_score = score
                 best_replacement = replacement
         else:
-            # Pas de break → pas de match exact → appliquer fuzzy
+            # No break → no exact match → apply fuzzy
             if best_replacement:
                 pat = re.compile(r"\b" + re.escape(text_word) + r"\b")
 
@@ -517,22 +517,22 @@ _CAP_AFTER_NEWLINE = re.compile(r"(\n\s*)([a-zà-ÿ])")
 
 
 def fix_capitalization(text):
-    """Capitalise après ponctuation de fin et en début de texte."""
+    """Capitalize after end punctuation and at the start of text."""
     if not text:
         return text
-    # Début du texte
+    # Start of text
     if text[0].islower():
         text = text[0].upper() + text[1:]
-    # Après . ! ? … — préserver les sauts de ligne
+    # After . ! ? … — preserve line breaks
     text = _CAP_AFTER_PUNCT.sub(
         lambda m: m.group(1) + m.group(2) + m.group(3).upper(), text
     )
-    # Après saut de ligne
+    # After line break
     text = _CAP_AFTER_NEWLINE.sub(lambda m: m.group(1) + m.group(2).upper(), text)
     return text
 
 
-# ── Correction LLM ──────────────────────────────────────────────────
+# ── LLM correction ───────────────────────────────────────────────────
 
 DEFAULT_PROMPT = (
     "<role>\n"
@@ -746,7 +746,7 @@ def _adaptive_timeout(base, text_len):
 
 
 def llm_postprocess(text):
-    """Envoie le texte au provider LLM configuré pour correction grammaticale."""
+    """Send text to the configured LLM provider for grammatical correction."""
     provider = (
         os.environ.get("DICTEE_LLM_PROVIDER", "ollama").strip().lower() or "ollama"
     )
@@ -792,7 +792,7 @@ def llm_postprocess(text):
         if VERBOSE:
             LOGGER.debug("llm failed (%s); keeping original text", exc)
         _llm_debug(f"llm failed ({exc}); keeping original text")
-    return text  # fallback : texte inchangé
+    return text  # fallback: unchanged text
 
 
 # ── Main ─────────────────────────────────────────────────────────────
@@ -805,7 +805,7 @@ def main():
         "-v",
         "--verbose",
         action="store_true",
-        help="affiche les étapes internes de post-traitement (stderr)",
+        help="show internal post-processing steps (stderr)",
     )
     args = parser.parse_args()
     VERBOSE = (
@@ -819,7 +819,7 @@ def main():
     if VERBOSE:
         LOGGER.debug("start lang=%s", LANG or "auto")
         LOGGER.debug("input raw len=%d preview=%r", len(text), _preview_text(text))
-    # Supprimer le \n ajouté par echo (mais garder les \n intentionnels)
+    # Remove the trailing \n added by echo (but keep intentional \n)
     if text.endswith("\n"):
         text = text[:-1]
     if not text.strip():
@@ -828,13 +828,13 @@ def main():
         sys.stdout.write(text)
         return
 
-    # 0. Détection de mauvaise langue (ASR multilingue confus sur audio court)
-    # Les règles tentent d'abord de récupérer les commandes vocales connues
-    # (ex: cyrillique "А линия" → \n pour "à la ligne").
-    # Si après les règles le texte est toujours dans le mauvais script, on le rejette.
+    # 0. Wrong language detection (multilingual ASR confused on short audio)
+    # Rules first try to recover known voice commands
+    # (e.g. Cyrillic "А линия" → \n for "à la ligne").
+    # If after rules the text is still in the wrong script, reject it.
 
-    # 1-5. Règles regex (annotations, hésitations, commandes vocales,
-    #       dédup, ponctuation, élisions basiques, nettoyage)
+    # 1-5. Regex rules (annotations, hesitations, voice commands,
+    #       dedup, punctuation, basic elisions, cleanup)
     start = time.perf_counter()
     before = text
     rules = load_rules()
@@ -843,14 +843,14 @@ def main():
     if rules:
         text = apply_rules(text, rules)
     _log_stage("rules", before, text, (time.perf_counter() - start) * 1000.0)
-    # Nettoyer les espaces en début (hésitations/annotations supprimées)
-    # mais préserver les \n de fin (commandes vocales "à la ligne")
+    # Trim leading spaces (removed hesitations/annotations)
+    # but preserve trailing \n (voice commands "à la ligne")
     start = time.perf_counter()
     before = text
     text = text.lstrip(" \t").rstrip(" \t")
     _log_stage("trim", before, text, (time.perf_counter() - start) * 1000.0)
 
-    # 5b. Rejet mauvaise langue (après les règles, qui ont pu convertir les commandes connues)
+    # 5b. Wrong language rejection (after rules, which may have converted known commands)
     if LANG:
         _LATIN_LANGS = {
             "fr",
@@ -890,30 +890,30 @@ def main():
                 sys.stdout.write("")
                 return
 
-    # 6. Élisions françaises avancées (avec h aspirés)
+    # 6. Advanced French elisions (with aspirated h)
     if LANG == "fr" and _env_bool("DICTEE_PP_ELISIONS"):
         start = time.perf_counter()
         before = text
         text = fix_elisions(text)
         _log_stage("elisions", before, text, (time.perf_counter() - start) * 1000.0)
 
-    # 7. Conversion nombres → chiffres
+    # 7. Number → digit conversion
     if _env_bool("DICTEE_PP_NUMBERS"):
         start = time.perf_counter()
         before = text
         text = convert_numbers(text)
         _log_stage("numbers", before, text, (time.perf_counter() - start) * 1000.0)
 
-    # 8. Typographie française (espaces insécables)
+    # 8. French typography (non-breaking spaces)
     if LANG == "fr" and _env_bool("DICTEE_PP_TYPOGRAPHY"):
         start = time.perf_counter()
         before = text
         text = fix_french_typography(text)
         _log_stage("typography", before, text, (time.perf_counter() - start) * 1000.0)
 
-    # 9. (nettoyage final déjà dans les règles regex étape 5)
+    # 9. (final cleanup already in regex rules step 5)
 
-    # 10. Dictionnaire (système + personnel, avec matching phonétique)
+    # 10. Dictionary (system + personal, with phonetic matching)
     start = time.perf_counter()
     before = text
     dictionary = load_dictionary()
@@ -931,7 +931,7 @@ def main():
         )
     _log_stage("dictionary", before, text, (time.perf_counter() - start) * 1000.0)
 
-    # 11. Capitalisation
+    # 11. Capitalization
     if _env_bool("DICTEE_PP_CAPITALIZATION"):
         start = time.perf_counter()
         before = text
@@ -940,7 +940,7 @@ def main():
             "capitalization", before, text, (time.perf_counter() - start) * 1000.0
         )
 
-    # 12. Correction LLM (optionnelle)
+    # 12. LLM correction (optional)
     if _env_bool("DICTEE_LLM_POSTPROCESS", "false"):
         start = time.perf_counter()
         before = text

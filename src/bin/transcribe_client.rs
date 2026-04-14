@@ -8,8 +8,8 @@ use std::time::Duration;
 
 extern crate hound;
 
-/// Chemins par utilisateur via $XDG_RUNTIME_DIR (ou /tmp fallback).
-/// Chaque utilisateur a ses propres fichiers temporaires et socket.
+/// User-specific paths via $XDG_RUNTIME_DIR (or /tmp fallback).
+/// Each user has their own temporary files and socket.
 fn user_path(name: &str) -> String {
     if let Ok(dir) = env::var("XDG_RUNTIME_DIR") {
         format!("{}/{}", dir, name)
@@ -27,19 +27,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
 
     if args.iter().any(|a| a == "--help" || a == "-h") {
-        eprintln!("transcribe-client - Client de transcription (fichier, stdin, micro)");
+        eprintln!("transcribe-client - Transcription client (file, stdin, microphone)");
         eprintln!();
         eprintln!("Usage:");
-        eprintln!("  transcribe-client <fichier>       Transcrire un fichier audio (tout format)");
-        eprintln!("  cat audio | transcribe-client     Transcrire depuis stdin");
-        eprintln!("  transcribe-client                 Enregistrer depuis le micro");
+        eprintln!("  transcribe-client <file>       Transcribe an audio file (any format)");
+        eprintln!("  cat audio | transcribe-client     Transcribe from stdin");
+        eprintln!("  transcribe-client                 Record from microphone");
         eprintln!();
-        eprintln!("Mode micro:");
-        eprintln!("  Sans TRANSCRIBE_DURATION : enregistrement jusqu'à Entrée");
-        eprintln!("  TRANSCRIBE_DURATION=10   : enregistrement de 10 secondes");
+        eprintln!("Microphone mode:");
+        eprintln!("  Without TRANSCRIBE_DURATION: record until Enter");
+        eprintln!("  TRANSCRIBE_DURATION=10   : record for 10 seconds");
         eprintln!();
-        eprintln!("Le micro est automatiquement démuté si nécessaire.");
-        eprintln!("Nécessite transcribe-daemon en cours d'exécution.");
+        eprintln!("Microphone is automatically unmuted if needed.");
+        eprintln!("Requires transcribe-daemon to be running.");
         return Ok(());
     }
 
@@ -64,14 +64,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         fs::write(TEMP_STDIN.as_str(), &input)?;
 
-        // ffmpeg auto-détecte le format via les headers
+        // ffmpeg auto-detects format via headers
         let status = Command::new("ffmpeg")
-            .args(["-y", "-i", TEMP_STDIN.as_str(), "-ar", "16000", "-ac", "1", "-f", "wav", TEMP_CONVERTED.as_str()])
+            .args([
+                "-y",
+                "-i",
+                TEMP_STDIN.as_str(),
+                "-ar",
+                "16000",
+                "-ac",
+                "1",
+                "-f",
+                "wav",
+                TEMP_CONVERTED.as_str(),
+            ])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
-            .map_err(|e| format!("ffmpeg not found: {}. Install ffmpeg to read from stdin.", e))?;
+            .map_err(|e| {
+                format!(
+                    "ffmpeg not found: {}. Install ffmpeg to read from stdin.",
+                    e
+                )
+            })?;
 
         let _ = fs::remove_file(TEMP_STDIN.as_str());
 
@@ -93,7 +109,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let was_muted = unmute_mic();
 
     let record_result = if let Some(duration) = duration {
-        eprintln!("Recording for {} seconds... (Ctrl+C to stop early)", duration);
+        eprintln!(
+            "Recording for {} seconds... (Ctrl+C to stop early)",
+            duration
+        );
         record_with_pipewire(duration)
             .or_else(|_| record_with_pulseaudio(duration))
             .or_else(|_| record_with_alsa(duration))
@@ -105,7 +124,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     if let Err(e) = record_result {
-        if was_muted { mute_mic(); }
+        if was_muted {
+            mute_mic();
+        }
         eprintln!("Failed to record audio: {}", e);
         eprintln!("Make sure pw-record, parecord, or arecord is installed.");
         std::process::exit(1);
@@ -114,7 +135,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("Recording complete. Transcribing...");
 
     let text = send_to_daemon(TEMP_WAV.as_str());
-    if was_muted { mute_mic(); }
+    if was_muted {
+        mute_mic();
+    }
     let _ = fs::remove_file(TEMP_WAV.as_str());
     println!("{}", text?);
 
@@ -127,9 +150,12 @@ fn record_with_pipewire(duration: u32) -> Result<(), Box<dyn std::error::Error>>
             "--signal=INT",
             &format!("{}s", duration),
             "pw-record",
-            "--rate", "16000",
-            "--channels", "1",
-            "--format", "s16",
+            "--rate",
+            "16000",
+            "--channels",
+            "1",
+            "--format",
+            "s16",
             TEMP_WAV.as_str(),
         ])
         .stdin(Stdio::null())
@@ -169,10 +195,14 @@ fn record_with_pulseaudio(duration: u32) -> Result<(), Box<dyn std::error::Error
 fn record_with_alsa(duration: u32) -> Result<(), Box<dyn std::error::Error>> {
     let status = Command::new("arecord")
         .args([
-            "-r", "16000",
-            "-c", "1",
-            "-f", "S16_LE",
-            "-d", &duration.to_string(),
+            "-r",
+            "16000",
+            "-c",
+            "1",
+            "-f",
+            "S16_LE",
+            "-d",
+            &duration.to_string(),
             TEMP_WAV.as_str(),
         ])
         .stdin(Stdio::null())
@@ -195,7 +225,15 @@ fn stop_recording(child: &mut std::process::Child) {
 
 fn record_pipewire_until_stopped() -> Result<(), Box<dyn std::error::Error>> {
     let mut child = Command::new("pw-record")
-        .args(["--rate", "16000", "--channels", "1", "--format", "s16", TEMP_WAV.as_str()])
+        .args([
+            "--rate",
+            "16000",
+            "--channels",
+            "1",
+            "--format",
+            "s16",
+            TEMP_WAV.as_str(),
+        ])
         .stdin(Stdio::null())
         .stderr(Stdio::inherit())
         .spawn()?;
@@ -213,7 +251,13 @@ fn record_pipewire_until_stopped() -> Result<(), Box<dyn std::error::Error>> {
 
 fn record_pulseaudio_until_stopped() -> Result<(), Box<dyn std::error::Error>> {
     let mut child = Command::new("parecord")
-        .args(["--rate=16000", "--channels=1", "--format=s16le", "--file-format=wav", TEMP_WAV.as_str()])
+        .args([
+            "--rate=16000",
+            "--channels=1",
+            "--format=s16le",
+            "--file-format=wav",
+            TEMP_WAV.as_str(),
+        ])
         .stdin(Stdio::null())
         .stderr(Stdio::inherit())
         .spawn()?;
@@ -291,7 +335,7 @@ fn mute_mic() {
     }
 }
 
-/// Résout ~/..., ./..., ../... en chemin absolu pour le daemon
+/// Resolve ~/..., ./..., ../... to absolute path for the daemon
 fn resolve_path(path: &str) -> Result<String, Box<dyn std::error::Error>> {
     let expanded = if let Some(rest) = path.strip_prefix("~/") {
         let home = env::var("HOME").map_err(|_| "HOME not set")?;
@@ -299,35 +343,57 @@ fn resolve_path(path: &str) -> Result<String, Box<dyn std::error::Error>> {
     } else {
         path.to_string()
     };
-    let canonical = fs::canonicalize(&expanded)
-        .map_err(|e| format!("{}: {}", expanded, e))?;
+    let canonical = fs::canonicalize(&expanded).map_err(|e| format!("{}: {}", expanded, e))?;
     Ok(canonical.to_string_lossy().into_owned())
 }
 
-/// Vérifie si le fichier est un WAV 16kHz mono (compatible daemon).
+/// Check if file is WAV 16kHz mono (daemon-compatible).
 fn is_wav_16k_mono(path: &str) -> bool {
-    let Ok(reader) = hound::WavReader::open(path) else { return false };
+    let Ok(reader) = hound::WavReader::open(path) else {
+        return false;
+    };
     let spec = reader.spec();
     spec.sample_rate == 16000 && spec.channels == 1
 }
 
-/// Convertit le fichier audio en WAV 16kHz mono si nécessaire via ffmpeg.
-/// Retourne (chemin_wav, needs_cleanup).
+/// Convert audio file to WAV 16kHz mono if needed via ffmpeg.
+/// Returns (wav_path, needs_cleanup).
 fn ensure_wav(audio_path: &str) -> Result<(String, bool), Box<dyn std::error::Error>> {
     if is_wav_16k_mono(audio_path) {
         return Ok((audio_path.to_string(), false));
     }
 
     let status = Command::new("ffmpeg")
-        .args(["-y", "-i", audio_path, "-ar", "16000", "-ac", "1", "-f", "wav", TEMP_CONVERTED.as_str()])
+        .args([
+            "-y",
+            "-i",
+            audio_path,
+            "-ar",
+            "16000",
+            "-ac",
+            "1",
+            "-f",
+            "wav",
+            TEMP_CONVERTED.as_str(),
+        ])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
-        .map_err(|e| format!("ffmpeg not found or failed to start: {}. Install ffmpeg to convert audio files.", e))?;
+        .map_err(|e| {
+            format!(
+                "ffmpeg not found or failed to start: {}. Install ffmpeg to convert audio files.",
+                e
+            )
+        })?;
 
     if !status.success() {
-        return Err(format!("ffmpeg failed to convert '{}' (exit code: {:?})", audio_path, status.code()).into());
+        return Err(format!(
+            "ffmpeg failed to convert '{}' (exit code: {:?})",
+            audio_path,
+            status.code()
+        )
+        .into());
     }
 
     Ok((TEMP_CONVERTED.to_string(), true))
@@ -337,7 +403,8 @@ fn send_to_daemon(audio_path: &str) -> Result<String, Box<dyn std::error::Error>
     let mut stream = UnixStream::connect(SOCKET_PATH.as_str()).map_err(|e| {
         format!(
             "Cannot connect to daemon at {}. Is transcribe-daemon running? Error: {}",
-            SOCKET_PATH.as_str(), e
+            SOCKET_PATH.as_str(),
+            e
         )
     })?;
 
@@ -347,10 +414,7 @@ fn send_to_daemon(audio_path: &str) -> Result<String, Box<dyn std::error::Error>
     stream.flush()?;
 
     let reader = BufReader::new(&stream);
-    let response = reader
-        .lines()
-        .next()
-        .ok_or("No response from daemon")??;
+    let response = reader.lines().next().ok_or("No response from daemon")??;
 
     if response.starts_with("ERROR:") {
         Err(response.into())

@@ -38,22 +38,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let args: Vec<String> = env::args().collect();
 
         if args.iter().any(|a| a == "--help" || a == "-h") {
-            eprintln!("transcribe-stream-diarize - Transcription streaming + diarisation (anglais uniquement)");
+            eprintln!(
+                "transcribe-stream-diarize - Streaming transcription + diarization (English only)"
+            );
             eprintln!();
             eprintln!("Usage:");
-            eprintln!("  transcribe-stream-diarize [audio]   Transcrire un fichier (tout format)");
-            eprintln!("  transcribe-stream-diarize            Enregistrer depuis le micro (Ctrl+C)");
+            eprintln!("  transcribe-stream-diarize [audio]   Transcribe a file (any format)");
+            eprintln!("  transcribe-stream-diarize            Record from microphone (Ctrl+C)");
             eprintln!();
-            eprintln!("Variables d'environnement:");
-            eprintln!("  NEMOTRON_DIR    Répertoire Nemotron (défaut: /usr/share/dictee/nemotron)");
-            eprintln!("  SORTFORMER_DIR  Répertoire Sortformer (défaut: /usr/share/dictee/sortformer)");
+            eprintln!("Environment variables:");
+            eprintln!("  NEMOTRON_DIR    Nemotron directory (default: /usr/share/dictee/nemotron)");
+            eprintln!(
+                "  SORTFORMER_DIR  Sortformer directory (default: /usr/share/dictee/sortformer)"
+            );
             eprintln!();
-            eprintln!("Le micro est automatiquement démuté si nécessaire.");
+            eprintln!("Microphone is automatically unmuted if needed.");
             return Ok(());
         }
 
-        let nemotron_dir = env::var("NEMOTRON_DIR")
-            .unwrap_or_else(|_| "/usr/share/dictee/nemotron".to_string());
+        let nemotron_dir =
+            env::var("NEMOTRON_DIR").unwrap_or_else(|_| "/usr/share/dictee/nemotron".to_string());
         let sortformer_dir = env::var("SORTFORMER_DIR")
             .unwrap_or_else(|_| "/usr/share/dictee/sortformer".to_string());
 
@@ -76,7 +80,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Record from microphone (auto-unmute)
             let was_muted = unmute_mic();
             let result = record_from_mic();
-            if was_muted { mute_mic(); }
+            if was_muted {
+                mute_mic();
+            }
             result?
         };
 
@@ -96,7 +102,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         eprint!("Loading Sortformer... ");
         std::io::stderr().flush()?;
-        let sortformer_path = format!("{}/diar_streaming_sortformer_4spk-v2.1.onnx", sortformer_dir);
+        let sortformer_path = format!(
+            "{}/diar_streaming_sortformer_4spk-v2.1.onnx",
+            sortformer_dir
+        );
         let mut sortformer = Sortformer::with_config(
             &sortformer_path,
             Some(config),
@@ -136,7 +145,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Check for sentence boundaries
                 if text.contains('.') || text.contains('?') || text.contains('!') {
                     current_text.push_str(&text);
-                    transcriptions.push((segment_start, current_time, current_text.trim().to_string()));
+                    transcriptions.push((
+                        segment_start,
+                        current_time,
+                        current_text.trim().to_string(),
+                    ));
                     current_text = String::new();
                     segment_start = current_time;
                 } else {
@@ -261,9 +274,12 @@ fn record_from_mic() -> Result<Vec<f32>, Box<dyn std::error::Error>> {
     // Start recording with pw-record
     let mut child = Command::new("pw-record")
         .args([
-            "--rate", "16000",
-            "--channels", "1",
-            "--format", "s16",
+            "--rate",
+            "16000",
+            "--channels",
+            "1",
+            "--format",
+            "s16",
             temp_file,
         ])
         .stdin(Stdio::null())
@@ -300,14 +316,15 @@ fn resolve_path(path: &str) -> Result<String, Box<dyn std::error::Error>> {
     } else {
         path.to_string()
     };
-    let canonical = fs::canonicalize(&expanded)
-        .map_err(|e| format!("{}: {}", expanded, e))?;
+    let canonical = fs::canonicalize(&expanded).map_err(|e| format!("{}: {}", expanded, e))?;
     Ok(canonical.to_string_lossy().into_owned())
 }
 
 #[cfg(feature = "sortformer")]
 fn is_wav_16k_mono(path: &str) -> bool {
-    let Ok(reader) = hound::WavReader::open(path) else { return false };
+    let Ok(reader) = hound::WavReader::open(path) else {
+        return false;
+    };
     let spec = reader.spec();
     spec.sample_rate == 16000 && spec.channels == 1
 }
@@ -319,15 +336,36 @@ fn ensure_wav(audio_path: &str) -> Result<(String, bool), Box<dyn std::error::Er
     }
 
     let status = Command::new("ffmpeg")
-        .args(["-y", "-i", audio_path, "-ar", "16000", "-ac", "1", "-f", "wav", TEMP_CONVERTED])
+        .args([
+            "-y",
+            "-i",
+            audio_path,
+            "-ar",
+            "16000",
+            "-ac",
+            "1",
+            "-f",
+            "wav",
+            TEMP_CONVERTED,
+        ])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
-        .map_err(|e| format!("ffmpeg not found: {}. Install ffmpeg to convert audio files.", e))?;
+        .map_err(|e| {
+            format!(
+                "ffmpeg not found: {}. Install ffmpeg to convert audio files.",
+                e
+            )
+        })?;
 
     if !status.success() {
-        return Err(format!("ffmpeg failed to convert '{}' (exit code: {:?})", audio_path, status.code()).into());
+        return Err(format!(
+            "ffmpeg failed to convert '{}' (exit code: {:?})",
+            audio_path,
+            status.code()
+        )
+        .into());
     }
 
     Ok((TEMP_CONVERTED.to_string(), true))

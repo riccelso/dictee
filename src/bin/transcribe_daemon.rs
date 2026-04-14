@@ -5,9 +5,9 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixListener;
 use std::path::Path;
 
-/// Retourne le chemin du socket par utilisateur.
-/// Utilise $XDG_RUNTIME_DIR/transcribe.sock (par défaut /run/user/UID/),
-/// ou /tmp/transcribe-UID.sock en fallback.
+/// Returns the user-specific socket path.
+/// Uses $XDG_RUNTIME_DIR/transcribe.sock (default /run/user/UID/),
+/// or /tmp/transcribe-UID.sock as fallback.
 fn socket_path() -> String {
     if let Ok(dir) = env::var("XDG_RUNTIME_DIR") {
         format!("{}/transcribe.sock", dir)
@@ -21,18 +21,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
 
     if args.iter().any(|a| a == "--help" || a == "-h") {
-        eprintln!("transcribe-daemon - Serveur de transcription via socket Unix");
+        eprintln!("transcribe-daemon - Unix socket transcription server");
         eprintln!();
         eprintln!("Usage: transcribe-daemon [model_dir]");
         eprintln!();
         eprintln!("Arguments:");
-        eprintln!("  [model_dir]   Répertoire du modèle TDT (défaut: /usr/share/dictee/tdt)");
+        eprintln!("  [model_dir]   TDT model directory (default: /usr/share/dictee/tdt)");
         eprintln!();
-        eprintln!("Écoute sur {}. Utiliser avec transcribe-client.", socket_path);
+        eprintln!("Listening on {}. Use with transcribe-client.", socket_path);
         return Ok(());
     }
 
-    let model_dir = if args.len() > 1 { &args[1] } else { "/usr/share/dictee/tdt" };
+    let model_dir = if args.len() > 1 {
+        &args[1]
+    } else {
+        "/usr/share/dictee/tdt"
+    };
 
     // Remove existing socket
     if Path::new(&socket_path).exists() {
