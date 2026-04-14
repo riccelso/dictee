@@ -1,5 +1,5 @@
 #!/bin/bash
-# test-translate.sh — Compare les backends de traduction
+# test-translate.sh — Compare translation backends
 # Usage: ./test-translate.sh [fr:en] ["texte à traduire"]
 
 PAIR="${1:-fr:en}"

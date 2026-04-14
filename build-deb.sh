@@ -36,7 +36,7 @@ echo "Build dependencies:"
 echo "  sudo apt install golang-go scdoc libxkbcommon-dev"
 echo ""
 
-# Copier les scripts depuis les sources uniques (racine)
+# Copy scripts from unique source (root)
 cp ./dictee "$PKG_DIR/usr/bin/dictee"
 cp ./dictee-setup.py "$PKG_DIR/usr/bin/dictee-setup"
 cp ./dictee-tray.py "$PKG_DIR/usr/bin/dictee-tray"
@@ -44,10 +44,10 @@ cp ./dictee-ptt.py "$PKG_DIR/usr/bin/dictee-ptt"
 cp ./dictee-postprocess.py "$PKG_DIR/usr/bin/dictee-postprocess"
 chmod 755 "$PKG_DIR/usr/bin/dictee" "$PKG_DIR/usr/bin/dictee-setup" "$PKG_DIR/usr/bin/dictee-tray" "$PKG_DIR/usr/bin/dictee-ptt" "$PKG_DIR/usr/bin/dictee-postprocess"
 
-# Copier les règles de post-traitement par défaut
+# Copy default post-processing rules
 cp ./rules.conf.default "$PKG_DIR/usr/share/dictee/rules.conf.default"
 
-# Copier les assets (bannières SVG pour le wizard)
+# Copy assets (SVG banners for wizard)
 echo "=== Copie des assets ==="
 mkdir -p "$PKG_DIR/usr/share/dictee/assets"
 cp ./assets/banner-dark.svg ./assets/banner-light.svg "$PKG_DIR/usr/share/dictee/assets/"
@@ -56,13 +56,13 @@ if [ -d "./assets/logos" ]; then
     cp ./assets/logos/*.svg "$PKG_DIR/usr/share/dictee/assets/logos/"
 fi
 
-# Compiler et copier les traductions
+# Compile and copy translations
 echo "=== Compilation des traductions ==="
 for lang in fr de es it uk pt; do
     msgfmt -o "po/$lang.mo" "po/$lang.po" 2>/dev/null || true
     mkdir -p "$PKG_DIR/usr/share/locale/$lang/LC_MESSAGES"
     cp "po/$lang.mo" "$PKG_DIR/usr/share/locale/$lang/LC_MESSAGES/dictee.mo"
-    # Copie interne (postinst les restaure si dpkg -r les a supprimées)
+    # Internal copy (postinst restores if dpkg -r removes them)
     mkdir -p "$PKG_DIR/usr/share/dictee/locale/$lang/LC_MESSAGES"
     cp "po/$lang.mo" "$PKG_DIR/usr/share/dictee/locale/$lang/LC_MESSAGES/dictee.mo"
 done
@@ -71,13 +71,13 @@ done
 build_dotool() {
     echo "=== Building dotool ==="
 
-    # Vérifier les dépendances de compilation
+    # Check build dependencies
     local missing=()
     command -v go >/dev/null || missing+=("golang-go")
     command -v scdoc >/dev/null || missing+=("scdoc")
     dpkg -s libxkbcommon-dev >/dev/null 2>&1 || missing+=("libxkbcommon-dev")
     if [ ${#missing[@]} -gt 0 ]; then
-        echo "Dépendances manquantes pour compiler dotool : ${missing[*]}"
+        echo "Missing dependencies for compiling dotool: ${missing[*]}"
         echo "  sudo apt install ${missing[*]}"
         exit 1
     fi
@@ -248,7 +248,7 @@ build_tarball() {
     mkdir -p "$TARBALL_DIR/usr/share/applications"
     mkdir -p "$TARBALL_DIR/etc/udev/rules.d"
 
-    # Binaires (derniers compilés = CPU)
+    # Binaries (latest build = CPU)
     for bin in transcribe transcribe-daemon transcribe-client transcribe-diarize transcribe-stream-diarize; do
         cp "target/release/$bin" "$TARBALL_DIR/usr/bin/"
     done
@@ -265,7 +265,7 @@ build_tarball() {
     # Udev rules (dotool)
     cp "$PKG_DIR/etc/udev/rules.d/80-dotool.rules" "$TARBALL_DIR/etc/udev/rules.d/"
 
-    # Services systemd + preset
+    # Systemd services + preset
     cp "$PKG_DIR/usr/lib/systemd/user/"*.service "$TARBALL_DIR/usr/lib/systemd/user/"
     cp "$PKG_DIR/usr/lib/systemd/user-preset/"*.preset "$TARBALL_DIR/usr/lib/systemd/user-preset/"
 
@@ -273,7 +273,7 @@ build_tarball() {
     cp "$PKG_DIR/usr/share/man/man1/"*.1 "$TARBALL_DIR/usr/share/man/man1/" 2>/dev/null || true
     cp "$PKG_DIR/usr/share/man/fr/man1/"*.1 "$TARBALL_DIR/usr/share/man/fr/man1/" 2>/dev/null || true
 
-    # Icônes
+    # Icons
     cp "$PKG_DIR/usr/share/icons/hicolor/scalable/apps/"*.svg "$TARBALL_DIR/usr/share/icons/hicolor/scalable/apps/"
 
     # Locales
@@ -293,7 +293,7 @@ build_tarball() {
         cp "$PKG_DIR/usr/share/dictee/assets/logos/"*.svg "$TARBALL_DIR/usr/share/dictee/assets/logos/"
     fi
 
-    # Scripts d'installation
+    # Installation scripts
     cp install.sh "$TARBALL_DIR/"
     cp uninstall.sh "$TARBALL_DIR/"
     if [ -f "scripts/clean-volatile-artifacts.sh" ]; then
