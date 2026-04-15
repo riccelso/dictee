@@ -233,8 +233,12 @@ impl Nemotron {
         let exec = exec_config.unwrap_or_default();
         let model = NemotronModel::from_pretrained(path, exec, model_config)?;
 
-        let encoder_cache =
-            NemotronEncoderCache::with_dims(NUM_ENCODER_LAYERS, LEFT_CONTEXT, HIDDEN_DIM, CONV_CONTEXT);
+        let encoder_cache = NemotronEncoderCache::with_dims(
+            NUM_ENCODER_LAYERS,
+            LEFT_CONTEXT,
+            HIDDEN_DIM,
+            CONV_CONTEXT,
+        );
 
         Ok(Self {
             model,
@@ -254,8 +258,12 @@ impl Nemotron {
 
     /// Reset all state for new utterance
     pub fn reset(&mut self) {
-        self.encoder_cache =
-            NemotronEncoderCache::with_dims(NUM_ENCODER_LAYERS, LEFT_CONTEXT, HIDDEN_DIM, CONV_CONTEXT);
+        self.encoder_cache = NemotronEncoderCache::with_dims(
+            NUM_ENCODER_LAYERS,
+            LEFT_CONTEXT,
+            HIDDEN_DIM,
+            CONV_CONTEXT,
+        );
         self.state_1.fill(0.0);
         self.state_2.fill(0.0);
         self.last_token = BLANK_ID as i32;
@@ -408,14 +416,16 @@ impl Nemotron {
             // Fill pre-encode cache
             for f in 0..cache_frames {
                 for m in 0..N_MELS {
-                    chunk_data[m * expected_size + cache_offset + f] = full_mel[[m, cache_start + f]];
+                    chunk_data[m * expected_size + cache_offset + f] =
+                        full_mel[[m, cache_start + f]];
                 }
             }
 
             // Fill main chunk
             for f in 0..CHUNK_SIZE.min(total_mel_frames - main_start) {
                 for m in 0..N_MELS {
-                    chunk_data[m * expected_size + PRE_ENCODE_CACHE + f] = full_mel[[m, main_start + f]];
+                    chunk_data[m * expected_size + PRE_ENCODE_CACHE + f] =
+                        full_mel[[m, main_start + f]];
                 }
             }
         }
@@ -468,9 +478,12 @@ impl Nemotron {
                 .to_owned();
 
             for _ in 0..max_symbols_per_step {
-                let (logits, new_state_1, new_state_2) =
-                    self.model
-                        .run_decoder(&frame, self.last_token, &self.state_1, &self.state_2)?;
+                let (logits, new_state_1, new_state_2) = self.model.run_decoder(
+                    &frame,
+                    self.last_token,
+                    &self.state_1,
+                    &self.state_2,
+                )?;
 
                 let mut max_idx = 0;
                 let mut max_val = f32::NEG_INFINITY;
@@ -495,8 +508,8 @@ impl Nemotron {
         Ok(tokens)
     }
 
-    /// Compute log mel spectrogram WITHOUT normalization. 
-    /// I use capitals because this gave me some trouble on the Python side :(). I realized they dont use it later. 
+    /// Compute log mel spectrogram WITHOUT normalization.
+    /// I use capitals because this gave me some trouble on the Python side :(). I realized they dont use it later.
     /// so offc nemo feeding raw log-mel spectrogram values (in decibels) directly to the encoder.
     fn compute_mel_spectrogram(&self, audio: &[f32]) -> Array2<f32> {
         if audio.is_empty() {
@@ -571,5 +584,131 @@ impl Nemotron {
             .map(|i| 0.5 - 0.5 * ((2.0 * PI * i as f32) / ((WIN_LENGTH - 1) as f32)).cos())
             .collect()
     }
+}
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sentencepiece_decode_empty() {
+        let vocab = SentencePieceVocab {
+            pieces: vec!["▁hello".to_string(), "▁world".to_string()],
+        };
+        assert_eq!(vocab.decode(&[]), "");
+    }
+
+    #[test]
+    fn test_sentencepiece_decode_basic() {
+        let vocab = SentencePieceVocab {
+            pieces: vec!["▁hello".to_string(), "▁world".to_string()],
+        };
+        let result = vocab.decode(&[0, 1]);
+        assert_eq!(result, "hello world");
+    }
+
+    #[test]
+    fn test_sentencepiece_decode_single() {
+        let vocab = SentencePieceVocab {
+            pieces: vec!["▁hello".to_string(), "▁world".to_string()],
+        };
+        assert_eq!(vocab.decode_single(0), " hello");
+        assert_eq!(vocab.decode_single(1), " world");
+    }
+
+    #[test]
+    fn test_sentencepiece_decode_out_of_range() {
+        let vocab = SentencePieceVocab {
+            pieces: vec!["a".to_string()],
+        };
+        assert_eq!(vocab.decode_single(99), "");
+    }
+
+    #[test]
+    fn test_sentencepiece_decode_with_space_marker() {
+        let vocab = SentencePieceVocab {
+            pieces: vec!["▁The".to_string(), "▁cat".to_string(), "s".to_string()],
+        };
+        let result = vocab.decode(&[0, 1, 2]);
+        assert_eq!(result, "The cats");
+    }
+
+    #[test]
+    fn test_sentencepiece_size() {
+        let vocab = SentencePieceVocab {
+            pieces: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+        };
+        assert_eq!(vocab.size(), 3);
+    }
+
+    #[test]
+    fn test_sentencepiece_decode_trims_leading_space() {
+        let vocab = SentencePieceVocab {
+            pieces: vec!["▁hello".to_string()],
+        };
+        let result = vocab.decode(&[0]);
+        assert_eq!(result, "hello");
+        assert!(!result.starts_with(' '));
+    }
+
+    #[test]
+    fn test_sentencepiece_from_file_nonexistent() {
+        let result = SentencePieceVocab::from_file("/nonexistent/tokenizer.model");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_read_varint_single_byte() {
+        let data: &[u8] = &[0x05];
+        let (value, bytes_read) = SentencePieceVocab::read_varint(data).unwrap();
+        assert_eq!(value, 5);
+        assert_eq!(bytes_read, 1);
+    }
+
+    #[test]
+    fn test_read_varint_multi_byte() {
+        let data: &[u8] = &[0xAC, 0x02];
+        let (value, bytes_read) = SentencePieceVocab::read_varint(data).unwrap();
+        assert_eq!(value, 300);
+        assert_eq!(bytes_read, 2);
+    }
+
+    #[test]
+    fn test_read_varint_empty() {
+        let data: &[u8] = &[];
+        let result = SentencePieceVocab::read_varint(data);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_sentencepiece_model_empty() {
+        let result = SentencePieceVocab::parse_sentencepiece_model(&[]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_nemotron_apply_preemphasis() {
+        let audio = vec![1.0f32, 2.0, 3.0];
+        let result = Nemotron::apply_preemphasis(&audio);
+        assert!((result[0] - 1.0).abs() < 1e-6);
+        assert!((result[1] - (2.0 - 0.97)).abs() < 1e-6);
+        assert!((result[2] - (3.0 - 0.97 * 2.0)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_nemotron_apply_preemphasis_empty() {
+        let result = Nemotron::apply_preemphasis(&[]);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_nemotron_create_window() {
+        let window = Nemotron::create_window();
+        assert_eq!(window.len(), WIN_LENGTH);
+        assert!(window[0].abs() < 1e-6);
+        assert!(window[WIN_LENGTH - 1].abs() < 1e-6);
+        for &w in &window {
+            assert!(w >= 0.0 && w <= 1.0);
+        }
+    }
 }

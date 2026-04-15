@@ -209,3 +209,167 @@ impl ParakeetDecoder {
         self.pad_token_id
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct MockDecoder {
+        pad_token_id: usize,
+    }
+
+    impl MockDecoder {
+        fn new() -> Self {
+            Self { pad_token_id: 0 }
+        }
+
+        fn ctc_collapse(&self, token_ids: &[u32]) -> Vec<u32> {
+            let mut result = Vec::new();
+            let mut prev_token: Option<u32> = None;
+
+            for &token_id in token_ids {
+                if token_id == self.pad_token_id as u32 {
+                    prev_token = Some(token_id);
+                    continue;
+                }
+
+                if Some(token_id) != prev_token {
+                    result.push(token_id);
+                }
+
+                prev_token = Some(token_id);
+            }
+
+            result
+        }
+
+        fn ctc_collapse_with_frames(&self, token_ids: &[(u32, usize)]) -> Vec<(u32, usize, usize)> {
+            let mut result: Vec<(u32, usize, usize)> = Vec::new();
+            let mut prev_token: Option<u32> = None;
+
+            for &(token_id, frame) in token_ids.iter() {
+                if token_id == self.pad_token_id as u32 {
+                    prev_token = Some(token_id);
+                    continue;
+                }
+
+                if Some(token_id) != prev_token {
+                    if let Some(last) = result.last_mut() {
+                        last.2 = frame;
+                    }
+                    result.push((token_id, frame, frame));
+                }
+
+                prev_token = Some(token_id);
+            }
+
+            if let Some(last) = result.last_mut() {
+                last.2 = token_ids.len();
+            }
+
+            result
+        }
+    }
+
+    #[test]
+    fn test_timed_token_fields() {
+        let token = TimedToken {
+            text: "hello".to_string(),
+            start: 0.1,
+            end: 0.5,
+        };
+        assert_eq!(token.text, "hello");
+        assert!((token.start - 0.1).abs() < 1e-6);
+        assert!((token.end - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_transcription_result_fields() {
+        let result = TranscriptionResult {
+            text: "hello world".to_string(),
+            tokens: vec![TimedToken {
+                text: "hello".to_string(),
+                start: 0.0,
+                end: 0.5,
+            }],
+        };
+        assert_eq!(result.text, "hello world");
+        assert_eq!(result.tokens.len(), 1);
+    }
+
+    #[test]
+    fn test_ctc_collapse_removes_blanks() {
+        let decoder = MockDecoder::new();
+        let token_ids: Vec<u32> = vec![0, 0, 2, 2, 0, 3, 0];
+        let collapsed = decoder.ctc_collapse(&token_ids);
+        assert_eq!(collapsed, vec![2, 3]);
+    }
+
+    #[test]
+    fn test_ctc_collapse_removes_repeats() {
+        let decoder = MockDecoder::new();
+        let token_ids: Vec<u32> = vec![2, 2, 2, 3, 3, 0, 0, 4, 4];
+        let collapsed = decoder.ctc_collapse(&token_ids);
+        assert_eq!(collapsed, vec![2, 3, 4]);
+    }
+
+    #[test]
+    fn test_ctc_collapse_all_blanks() {
+        let decoder = MockDecoder::new();
+        let token_ids: Vec<u32> = vec![0, 0, 0];
+        let collapsed = decoder.ctc_collapse(&token_ids);
+        assert!(collapsed.is_empty());
+    }
+
+    #[test]
+    fn test_ctc_collapse_empty() {
+        let decoder = MockDecoder::new();
+        let token_ids: Vec<u32> = vec![];
+        let collapsed = decoder.ctc_collapse(&token_ids);
+        assert!(collapsed.is_empty());
+    }
+
+    #[test]
+    fn test_ctc_collapse_no_blanks() {
+        let decoder = MockDecoder::new();
+        let token_ids: Vec<u32> = vec![2, 3, 4];
+        let collapsed = decoder.ctc_collapse(&token_ids);
+        assert_eq!(collapsed, vec![2, 3, 4]);
+    }
+
+    #[test]
+    fn test_ctc_collapse_repeated_non_blank() {
+        let decoder = MockDecoder::new();
+        let token_ids: Vec<u32> = vec![2, 2, 0, 2, 2];
+        let collapsed = decoder.ctc_collapse(&token_ids);
+        assert_eq!(collapsed, vec![2, 2]);
+    }
+
+    #[test]
+    fn test_ctc_collapse_with_frames_basic() {
+        let decoder = MockDecoder::new();
+        let tokens: Vec<(u32, usize)> = vec![(2, 0), (2, 1), (0, 2), (3, 3), (0, 4)];
+        let collapsed = decoder.ctc_collapse_with_frames(&tokens);
+        assert_eq!(collapsed.len(), 2);
+        assert_eq!(collapsed[0].0, 2);
+        assert_eq!(collapsed[1].0, 3);
+    }
+
+    #[test]
+    fn test_ctc_collapse_with_frames_has_start_end() {
+        let decoder = MockDecoder::new();
+        let tokens: Vec<(u32, usize)> = vec![(2, 0), (2, 1), (0, 2), (3, 3), (3, 4)];
+        let collapsed = decoder.ctc_collapse_with_frames(&tokens);
+        assert_eq!(collapsed[0].1, 0);
+        assert!(collapsed[0].2 > 0);
+        assert_eq!(collapsed[1].1, 3);
+    }
+
+    #[test]
+    fn test_ctc_collapse_with_frames_all_blank() {
+        let decoder = MockDecoder::new();
+        let tokens: Vec<(u32, usize)> = vec![(0, 0), (0, 1), (0, 2)];
+        let collapsed = decoder.ctc_collapse_with_frames(&tokens);
+        assert!(collapsed.is_empty());
+    }
+}

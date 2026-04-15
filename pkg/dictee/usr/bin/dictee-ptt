@@ -1,24 +1,24 @@
 #!/usr/bin/env -S python3 -u
-"""dictee-ptt — daemon push-to-talk / toggle pour dictee.
+"""dictee-ptt — daemon push-to-talk / toggle for dictee.
 
-Écoute les claviers physiques via evdev, capture exclusivement la touche
-configurée (grab + re-émission uinput), et déclenche dictee selon le mode.
+Listens to physical keyboards via evdev, exclusively captures the configured
+key (grab + re-emit via uinput), and triggers dictee according to the mode.
 
-En mode hold : key-down = start, key-up = stop+transcribe.
-En mode toggle : key-down = start/stop alternés.
+In hold mode: key-down = start, key-up = stop+transcribe.
+In toggle mode: key-down = start/stop alternated.
 
 Usage:
     dictee-ptt [--mode=toggle|hold] [--key=67] [--key-translate=67] [--mod-translate=alt]
     dictee-ptt --help
 
-Exemples :
+Examples:
     dictee-ptt --mode=hold --key=67                        # F9 hold
     dictee-ptt --mode=hold --key=67 --key-translate=67 --mod-translate=alt  # F9 + Alt+F9
-    dictee-ptt --mode=toggle --key=67 --key-translate=68   # F9 / F10 séparés
+    dictee-ptt --mode=toggle --key=67 --key-translate=68   # F9 / F10 separated
 
-Nécessite : groupe 'input' pour /dev/input/* et /dev/uinput.
+Requires: 'input' group for /dev/input/* and /dev/uinput.
 
-Keycodes Linux courants :
+Common Linux keycodes:
     F1=59  F2=60  F3=61  F4=62  F5=63  F6=64  F7=65  F8=66
     F9=67  F10=68 F11=87 F12=88 ESC=1
 """
@@ -59,18 +59,18 @@ KEY_RIGHTCTRL = 97
 KEY_LEFTSHIFT = 42
 KEY_RIGHTSHIFT = 54
 
-# Modificateurs supportés : nom → (keycode gauche, keycode droit)
+# Supported modifiers: name → (left keycode, right keycode)
 MODIFIERS = {
     "alt": (KEY_LEFTALT, KEY_RIGHTALT),
     "ctrl": (KEY_LEFTCTRL, KEY_RIGHTCTRL),
     "shift": (KEY_LEFTSHIFT, KEY_RIGHTSHIFT),
 }
 
-DEBOUNCE = 0.15  # 150ms anti-rebond
-STOP_COOLDOWN = 0.5  # 500ms — ignore KEY_DOWN parasites après stop
-PIDFILE_TIMEOUT = 3.0  # attente max PIDFILE au key-up
-MIN_HOLD_DURATION = 0.3  # 300ms — en dessous, cancel au lieu de transcrire
-RESCAN_INTERVAL = 10  # secondes entre rescans claviers (hotplug)
+DEBOUNCE = 0.15  # 150ms debounce
+STOP_COOLDOWN = 0.5  # 500ms — ignore parasitic KEY_DOWN after stop
+PIDFILE_TIMEOUT = 3.0  # max wait for PIDFILE at key-up
+MIN_HOLD_DURATION = 0.3  # 300ms — below, cancel instead of transcribing
+RESCAN_INTERVAL = 10  # seconds between keyboard rescans (hotplug)
 
 
 def load_config():
@@ -164,7 +164,7 @@ def run_dictee_async(*args, no_animation=False):
 
 
 def wait_pidfile():
-    """Attend que le PIDFILE apparaisse (dictee a démarré pw-record)."""
+    """Wait for PIDFILE to appear (dictee has started pw-record)."""
     deadline = time.monotonic() + PIDFILE_TIMEOUT
     while time.monotonic() < deadline:
         if os.path.isfile(PIDFILE):
@@ -174,7 +174,7 @@ def wait_pidfile():
 
 
 def acquire_lock():
-    """Empêche les instances multiples via flock."""
+    """Prevent multiple instances via flock."""
     try:
         lf = open(OWN_PIDFILE, "w")
         fcntl.flock(lf, fcntl.LOCK_EX | fcntl.LOCK_NB)

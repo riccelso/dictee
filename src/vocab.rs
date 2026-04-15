@@ -64,3 +64,98 @@ impl Vocabulary {
         self.id_to_token.len()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    fn write_vocab_file(entries: &[(&str, usize)]) -> String {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let path = format!("/tmp/test_vocab_{}.txt", id);
+        let mut f = std::fs::File::create(&path).unwrap();
+        for (token, idx) in entries {
+            writeln!(f, "{} {}", token, idx).unwrap();
+        }
+        path
+    }
+
+    #[test]
+    fn test_vocab_from_file_basic() {
+        let path = write_vocab_file(&[("<blk>", 0), ("hello", 1), ("▁world", 2)]);
+        let vocab = Vocabulary::from_file(&path).unwrap();
+        assert_eq!(vocab.size(), 3);
+        assert_eq!(vocab.id_to_text(0), Some("<blk>"));
+        assert_eq!(vocab.id_to_text(1), Some("hello"));
+        assert_eq!(vocab.id_to_text(2), Some("▁world"));
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_vocab_blank_detection_blk() {
+        let path = write_vocab_file(&[("<blk>", 0), ("a", 1)]);
+        let vocab = Vocabulary::from_file(&path).unwrap();
+        assert_eq!(vocab._blank_id, 1);
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_vocab_blank_detection_blank() {
+        let path = write_vocab_file(&[("<blank>", 0), ("a", 1)]);
+        let vocab = Vocabulary::from_file(&path).unwrap();
+        assert_eq!(vocab._blank_id, 1);
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_vocab_no_blank_defaults_to_last() {
+        let path = write_vocab_file(&[("a", 0), ("b", 1), ("c", 2)]);
+        let vocab = Vocabulary::from_file(&path).unwrap();
+        assert_eq!(vocab._blank_id, 2);
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_vocab_sparse_ids() {
+        let path = format!("/tmp/test_vocab_sparse_{}.txt", std::process::id());
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "a 0").unwrap();
+        writeln!(f, "z 25").unwrap();
+        let vocab = Vocabulary::from_file(&path).unwrap();
+        assert_eq!(vocab.size(), 26);
+        assert_eq!(vocab.id_to_text(0), Some("a"));
+        assert_eq!(vocab.id_to_text(25), Some("z"));
+        assert_eq!(vocab.id_to_text(5), Some(""));
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_vocab_nonexistent_file() {
+        let result = Vocabulary::from_file("/nonexistent/vocab.txt");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_vocab_empty_file() {
+        let path = format!("/tmp/test_vocab_empty_{}.txt", std::process::id());
+        std::fs::write(&path, "").unwrap();
+        let vocab = Vocabulary::from_file(&path).unwrap();
+        assert_eq!(vocab.size(), 0);
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_vocab_skip_invalid_lines() {
+        let path = format!("/tmp/test_vocab_mixed_{}.txt", std::process::id());
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "a 0").unwrap();
+        writeln!(f, "b 1").unwrap();
+        writeln!(f, "").unwrap();
+        writeln!(f, "nospace").unwrap();
+        let vocab = Vocabulary::from_file(&path).unwrap();
+        assert_eq!(vocab.size(), 2);
+        std::fs::remove_file(&path).ok();
+    }
+}

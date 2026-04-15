@@ -5,6 +5,252 @@ use ndarray::Array2;
 use std::f32::consts::PI;
 use std::path::Path;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hound::{WavSpec, WavWriter};
+    use std::io::Cursor;
+
+    #[allow(dead_code)]
+    fn write_wav(samples: &[f32], sample_rate: u32, channels: u16) -> Vec<u8> {
+        let spec = WavSpec {
+            channels,
+            sample_rate,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Float,
+        };
+        let mut buf = Cursor::new(Vec::new());
+        {
+            let mut writer = WavWriter::new(&mut buf, spec).unwrap();
+            for &s in samples {
+                writer.write_sample(s).unwrap();
+            }
+            writer.finalize().unwrap();
+        }
+        buf.into_inner()
+    }
+
+    #[test]
+    fn test_load_audio_float_wav() {
+        let samples: Vec<f32> = vec![0.0, 0.5, -0.5, 1.0];
+        let path = "test_load_float.wav";
+
+        let spec = WavSpec {
+            channels: 1,
+            sample_rate: 16000,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Float,
+        };
+        {
+            let mut writer = WavWriter::create(path, spec).unwrap();
+            for &s in &samples {
+                writer.write_sample(s).unwrap();
+            }
+            writer.finalize().unwrap();
+        }
+
+        let (loaded, wav_spec) = load_audio(path).unwrap();
+        assert_eq!(loaded.len(), 4);
+        assert!((loaded[0] - 0.0).abs() < 1e-6);
+        assert!((loaded[1] - 0.5).abs() < 1e-6);
+        assert!((loaded[2] - (-0.5)).abs() < 1e-6);
+        assert!((loaded[3] - 1.0).abs() < 1e-6);
+        assert_eq!(wav_spec.sample_rate, 16000);
+        assert_eq!(wav_spec.channels, 1);
+
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn test_load_audio_int_wav() {
+        let samples: Vec<i16> = vec![0, 16384, -16384, 32767];
+        let path = "test_load_int.wav";
+        let spec = WavSpec {
+            channels: 1,
+            sample_rate: 16000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        {
+            let mut writer = WavWriter::create(path, spec).unwrap();
+            for &s in &samples {
+                writer.write_sample(s).unwrap();
+            }
+            writer.finalize().unwrap();
+        }
+
+        let (loaded, wav_spec) = load_audio(path).unwrap();
+        assert_eq!(loaded.len(), 4);
+        assert!((loaded[0] - 0.0).abs() < 1e-4);
+        assert!((loaded[1] - 0.5).abs() < 0.01);
+        assert!((loaded[2] - (-0.5)).abs() < 0.01);
+        assert_eq!(wav_spec.sample_rate, 16000);
+
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn test_load_audio_nonexistent() {
+        let result = load_audio("/nonexistent/path.wav");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_apply_preemphasis_identity() {
+        let audio = vec![1.0f32, 2.0, 3.0, 4.0];
+        let result = apply_preemphasis(&audio, 0.0);
+        assert_eq!(result, audio);
+    }
+
+    #[test]
+    fn test_apply_preemphasis_standard() {
+        let audio = vec![1.0f32, 2.0, 3.0, 4.0];
+        let result = apply_preemphasis(&audio, 0.97);
+        assert!((result[0] - 1.0).abs() < 1e-6);
+        assert!((result[1] - (2.0 - 0.97 * 1.0)).abs() < 1e-6);
+        assert!((result[2] - (3.0 - 0.97 * 2.0)).abs() < 1e-6);
+        assert!((result[3] - (4.0 - 0.97 * 3.0)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_apply_preemphasis_single_sample() {
+        let audio = vec![0.5f32];
+        let result = apply_preemphasis(&audio, 0.97);
+        assert_eq!(result.len(), 1);
+        assert!((result[0] - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_hann_window() {
+        let w = hann_window(4);
+        assert_eq!(w.len(), 4);
+        assert!((w[0]).abs() < 1e-6);
+        assert!(w[1] > 0.0);
+        assert!(w[2] > 0.0);
+        assert!((w[3]).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_stft_output_shape() {
+        let audio = vec![0.0f32; 16000];
+        let n_fft = 512;
+        let hop_length = 160;
+        let win_length = 400;
+        let spec = stft(&audio, n_fft, hop_length, win_length);
+
+        let freq_bins = n_fft / 2 + 1;
+        assert_eq!(spec.shape()[0], freq_bins);
+        assert!(spec.shape()[1] > 0);
+    }
+
+    #[test]
+    fn test_stft_silence_is_near_zero() {
+        let audio = vec![0.0f32; 16000];
+        let spec = stft(&audio, 512, 160, 400);
+        for val in spec.iter() {
+            assert!(val.abs() < 1e-10);
+        }
+    }
+
+    #[test]
+    fn test_stft_sine_has_energy() {
+        let sample_rate = 16000.0f32;
+        let freq = 440.0f32;
+        let audio: Vec<f32> = (0..16000)
+            .map(|i| (2.0 * PI * freq * i as f32 / sample_rate).sin() * 0.5)
+            .collect();
+        let spec = stft(&audio, 512, 160, 400);
+        let total_energy: f32 = spec.iter().sum();
+        assert!(total_energy > 1.0);
+    }
+
+    #[test]
+    fn test_create_mel_filterbank_shape() {
+        let fb = create_mel_filterbank(512, 80, 16000);
+        assert_eq!(fb.shape(), &[80, 257]);
+    }
+
+    #[test]
+    fn test_create_mel_filterbank_nonnegative() {
+        let fb = create_mel_filterbank(512, 80, 16000);
+        for val in fb.iter() {
+            assert!(*val >= 0.0);
+        }
+    }
+
+    #[test]
+    fn test_create_mel_filterbank_tdt_128() {
+        let fb = create_mel_filterbank(512, 128, 16000);
+        assert_eq!(fb.shape(), &[128, 257]);
+        let sum: f32 = fb.iter().sum();
+        assert!(sum > 0.0);
+    }
+
+    #[test]
+    fn test_hz_to_mel_slaney_zero() {
+        assert!((hz_to_mel_slaney(0.0)).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_hz_to_mel_slaney_low() {
+        let mel = hz_to_mel_slaney(100.0);
+        assert!((mel - 100.0 / (200.0 / 3.0)).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_hz_to_mel_slaney_high() {
+        let mel = hz_to_mel_slaney(8000.0);
+        assert!(mel > 0.0);
+    }
+
+    #[test]
+    fn test_mel_to_hz_roundtrip() {
+        for hz in [0.0, 100.0, 500.0, 1000.0, 4000.0, 8000.0] {
+            let mel = hz_to_mel_slaney(hz);
+            let hz_back = mel_to_hz_slaney(mel);
+            assert!(
+                (hz - hz_back).abs() < 1e-6,
+                "roundtrip failed for {} Hz",
+                hz
+            );
+        }
+    }
+
+    #[test]
+    fn test_extract_features_wrong_sample_rate() {
+        let audio = vec![0.0f32; 1600];
+        let config = PreprocessorConfig::default();
+        let result = extract_features_raw(audio, 8000, 1, &config);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            Error::Audio(msg) => assert!(msg.contains("8000")),
+            _ => panic!("Expected Audio error"),
+        }
+    }
+
+    #[test]
+    fn test_extract_features_stereo_downmix() {
+        let audio: Vec<f32> = vec![1.0, 3.0, 2.0, 4.0];
+        let config = PreprocessorConfig::default();
+        let result = extract_features_raw(audio, 16000, 2, &config);
+        assert!(result.is_ok());
+        let features = result.unwrap();
+        assert!(features.shape()[0] > 0);
+        assert_eq!(features.shape()[1], config.feature_size);
+    }
+
+    #[test]
+    fn test_extract_features_mono_shape() {
+        let audio = vec![0.5f32; 16000];
+        let config = PreprocessorConfig::default();
+        let result = extract_features_raw(audio, 16000, 1, &config);
+        assert!(result.is_ok());
+        let features = result.unwrap();
+        assert!(features.shape()[0] > 0);
+        assert_eq!(features.shape()[1], config.feature_size);
+    }
+}
+
 pub fn load_audio<P: AsRef<Path>>(path: P) -> Result<(Vec<f32>, WavSpec)> {
     let mut reader = WavReader::open(path)?;
     let spec = reader.spec();
@@ -195,8 +441,8 @@ pub fn extract_features_raw(
     for feat_idx in 0..num_features {
         let mut column = mel_spectrogram.column_mut(feat_idx);
         let mean: f32 = column.iter().sum::<f32>() / num_frames as f32;
-        let variance: f32 = column.iter().map(|&x| (x - mean).powi(2)).sum::<f32>()
-            / (num_frames as f32 - 1.0);
+        let variance: f32 =
+            column.iter().map(|&x| (x - mean).powi(2)).sum::<f32>() / (num_frames as f32 - 1.0);
         let std = variance.sqrt() + 1e-5;
 
         for val in column.iter_mut() {

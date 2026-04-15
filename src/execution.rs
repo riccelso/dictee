@@ -182,3 +182,67 @@ impl ModelConfig {
         Ok(builder)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_model_config_defaults() {
+        let config = ModelConfig::default();
+        assert_eq!(config.execution_provider, ExecutionProvider::Cpu);
+        assert_eq!(config.intra_threads, 4);
+        assert_eq!(config.inter_threads, 1);
+        assert!(config.configure.is_none());
+    }
+
+    #[test]
+    fn test_model_config_new_equals_default() {
+        let a = ModelConfig::new();
+        let b = ModelConfig::default();
+        assert_eq!(a.execution_provider, b.execution_provider);
+        assert_eq!(a.intra_threads, b.intra_threads);
+        assert_eq!(a.inter_threads, b.inter_threads);
+    }
+
+    #[test]
+    fn test_model_config_builder() {
+        let config = ModelConfig::new()
+            .with_intra_threads(8)
+            .with_inter_threads(2);
+        assert_eq!(config.intra_threads, 8);
+        assert_eq!(config.inter_threads, 2);
+    }
+
+    #[test]
+    fn test_execution_provider_default_is_cpu() {
+        assert_eq!(ExecutionProvider::default(), ExecutionProvider::Cpu);
+    }
+
+    #[test]
+    fn test_model_config_debug() {
+        let config = ModelConfig::new();
+        let debug = format!("{:?}", config);
+        assert!(debug.contains("Cpu"));
+        assert!(debug.contains("intra_threads"));
+    }
+
+    #[test]
+    fn test_model_config_with_custom_configure() {
+        let config = ModelConfig::new().with_custom_configure(|b| Ok(b));
+        assert!(config.configure.is_some());
+    }
+
+    #[test]
+    fn test_model_config_clone() {
+        let config = ModelConfig::new().with_intra_threads(16);
+        let cloned = config.clone();
+        assert_eq!(cloned.intra_threads, 16);
+        assert_eq!(cloned.inter_threads, config.inter_threads);
+    }
+
+    #[test]
+    fn test_execution_provider_equality() {
+        assert_eq!(ExecutionProvider::Cpu, ExecutionProvider::Cpu);
+    }
+}

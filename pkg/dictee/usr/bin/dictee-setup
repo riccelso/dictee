@@ -160,8 +160,8 @@ LANGUAGES = [
     ("ar", "العربية"),
 ]
 
-# Languages supported by each ASR backend (for filtering source language)
-# Parakeet TDT 0.6B v3: 25 European languages (source: NVIDIA HuggingFace)
+# Languages supported by each ASR backend (for source language filtering)
+# Parakeet TDT 0.6B v3 : 25 European languages (source: NVIDIA HuggingFace)
 PARAKEET_LANGUAGES = {
     "bg",
     "cs",

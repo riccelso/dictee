@@ -50,3 +50,71 @@ impl From<hound::Error> for Error {
         Error::Audio(e.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_io_error() {
+        let err = Error::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "file not found",
+        ));
+        let msg = format!("{}", err);
+        assert!(msg.contains("IO error"));
+        assert!(msg.contains("file not found"));
+    }
+
+    #[test]
+    fn test_display_audio_error() {
+        let err = Error::Audio("bad sample".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("Audio processing error"));
+        assert!(msg.contains("bad sample"));
+    }
+
+    #[test]
+    fn test_display_model_error() {
+        let err = Error::Model("no weights".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("Model error"));
+    }
+
+    #[test]
+    fn test_display_tokenizer_error() {
+        let err = Error::Tokenizer("bad token".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("Tokenizer error"));
+    }
+
+    #[test]
+    fn test_display_config_error() {
+        let err = Error::Config("missing field".to_string());
+        let msg = format!("{}", err);
+        assert!(msg.contains("Config error"));
+    }
+
+    #[test]
+    fn test_from_io_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
+        let err: Error = io_err.into();
+        match err {
+            Error::Io(_) => {}
+            _ => panic!("Expected Io variant"),
+        }
+    }
+
+    #[test]
+    fn test_debug_format() {
+        let err = Error::Audio("test".to_string());
+        let debug = format!("{:?}", err);
+        assert!(debug.contains("Audio"));
+    }
+
+    #[test]
+    fn test_error_is_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Error>();
+    }
+}
