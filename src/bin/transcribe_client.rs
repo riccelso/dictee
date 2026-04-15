@@ -4,7 +4,6 @@ use std::io::{BufRead, BufReader, IsTerminal, Read, Write};
 use std::os::unix::net::UnixStream;
 use std::process::{Command, Stdio};
 use std::sync::LazyLock;
-use std::time::Duration;
 
 extern crate hound;
 
@@ -408,7 +407,7 @@ fn send_to_daemon(audio_path: &str) -> Result<String, Box<dyn std::error::Error>
         )
     })?;
 
-    stream.set_read_timeout(Some(Duration::from_secs(30)))?;
+    stream.set_read_timeout(None)?;
 
     writeln!(stream, "{}", audio_path)?;
     stream.flush()?;

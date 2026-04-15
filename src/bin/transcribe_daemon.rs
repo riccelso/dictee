@@ -86,6 +86,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+const CHUNK_SECS: usize = 30;
+
 fn transcribe_file(
     parakeet: &mut ParakeetTDT,
     audio_path: &str,
@@ -101,14 +103,125 @@ fn transcribe_file(
             .collect::<Result<Vec<_>, _>>()?,
     };
 
-    let result = parakeet.transcribe_samples(
-        audio,
-        spec.sample_rate,
-        spec.channels,
-        Some(TimestampMode::Sentences),
-    )?;
+    let chunk_samples = CHUNK_SECS * spec.sample_rate as usize;
 
-    Ok(result.text.trim().to_string())
+    if audio.len() <= chunk_samples {
+        let result = parakeet.transcribe_samples(
+            audio,
+            spec.sample_rate,
+            spec.channels,
+            Some(TimestampMode::Sentences),
+        )?;
+        return Ok(result.text.trim().to_string());
+    }
+
+    let duration_secs = audio.len() as f64 / spec.sample_rate as f64;
+    eprintln!(
+        "Long audio ({:.1}s), splitting into {}s chunks...",
+        duration_secs, CHUNK_SECS
+    );
+
+    let total_chunks = (audio.len() + chunk_samples - 1) / chunk_samples;
+    let mut parts: Vec<String> = Vec::new();
+
+    for (i, chunk) in audio.chunks(chunk_samples).enumerate() {
+        let mut chunk_vec = chunk.to_vec();
+        if chunk_vec.len() < chunk_samples {
+            chunk_vec.resize(chunk_samples, 0.0f32);
+        }
+
+        eprintln!("  chunk {}/{}...", i + 1, total_chunks);
+
+        let result = parakeet.transcribe_samples(
+            chunk_vec,
+            spec.sample_rate,
+            spec.channels,
+            Some(TimestampMode::Sentences),
+        )?;
+
+        let text = result.text.trim().to_string();
+        if !text.is_empty() {
+            parts.push(text);
+        }
+    }
+
+    Ok(parts.join(" "))
 }
 
 use std::os::unix::fs::PermissionsExt;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_chunk_samples_calculation() {
+        let chunk_samples = CHUNK_SECS * 16000usize;
+        assert_eq!(chunk_samples, 480000);
+    }
+
+    #[test]
+    fn test_chunk_count_short_audio() {
+        let chunk_samples = CHUNK_SECS * 16000usize;
+        let audio_len = chunk_samples;
+        let total_chunks = (audio_len + chunk_samples - 1) / chunk_samples;
+        assert_eq!(total_chunks, 1);
+    }
+
+    #[test]
+    fn test_chunk_count_exact_multiple() {
+        let chunk_samples = CHUNK_SECS * 16000usize;
+        let audio_len = chunk_samples * 3;
+        let total_chunks = (audio_len + chunk_samples - 1) / chunk_samples;
+        assert_eq!(total_chunks, 3);
+    }
+
+    #[test]
+    fn test_chunk_count_with_remainder() {
+        let chunk_samples = CHUNK_SECS * 16000usize;
+        let audio_len = chunk_samples * 2 + 1000;
+        let total_chunks = (audio_len + chunk_samples - 1) / chunk_samples;
+        assert_eq!(total_chunks, 3);
+    }
+
+    #[test]
+    fn test_chunk_basics_iterator() {
+        let chunk_samples = 100;
+        let audio: Vec<f32> = (0..250).map(|i| i as f32).collect();
+        let chunks: Vec<&[f32]> = audio.chunks(chunk_samples).collect();
+        assert_eq!(chunks.len(), 3);
+        assert_eq!(chunks[0].len(), 100);
+        assert_eq!(chunks[1].len(), 100);
+        assert_eq!(chunks[2].len(), 50);
+    }
+
+    #[test]
+    fn test_last_chunk_padding() {
+        let chunk_samples = 100;
+        let audio: Vec<f32> = (0..150).map(|i| i as f32).collect();
+        let mut last_chunk = audio.chunks(chunk_samples).last().unwrap().to_vec();
+        assert_eq!(last_chunk.len(), 50);
+        last_chunk.resize(chunk_samples, 0.0f32);
+        assert_eq!(last_chunk.len(), 100);
+        assert_eq!(
+            last_chunk[50..].iter().cloned().collect::<Vec<f32>>(),
+            vec![0.0; 50]
+        );
+    }
+
+    #[test]
+    fn test_socket_path_format() {
+        std::env::set_var("XDG_RUNTIME_DIR", "/run/user/1000");
+        let path = socket_path();
+        assert_eq!(path, "/run/user/1000/transcribe.sock");
+        std::env::remove_var("XDG_RUNTIME_DIR");
+    }
+
+    #[test]
+    fn test_duration_calculation() {
+        let sample_rate: usize = 16000;
+        let audio_len: usize = 16000 * 90;
+        let duration = audio_len as f64 / sample_rate as f64;
+        assert!((duration - 90.0).abs() < 1e-6);
+    }
+}
