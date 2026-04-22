@@ -3,6 +3,9 @@ use std::{fmt, rc::Rc};
 use crate::error::Result;
 use ort::session::builder::SessionBuilder;
 
+#[cfg(feature = "cuda")]
+use ort::ep::{CUDA, ExecutionProvider as OrtExecutionProvider};
+
 // Hardware acceleration options. CPU is default and most reliable.
 // GPU providers (CUDA, TensorRT, MIGraphX) offer 5-10x speedup but require specific hardware.
 // All GPU providers automatically fall back to CPU if they fail.
@@ -37,6 +40,26 @@ pub struct ModelConfig {
     pub intra_threads: usize,
     pub inter_threads: usize,
     pub configure: Option<Rc<dyn Fn(SessionBuilder) -> ort::Result<SessionBuilder>>>,
+}
+
+#[cfg(feature = "cuda")]
+pub fn check_cuda_available() -> bool {
+    match CUDA::default().is_available() {
+        Ok(true) => true,
+        Ok(false) => {
+            eprintln!("WARNING: CUDA execution provider compiled but NOT available — missing libraries or driver");
+            false
+        }
+        Err(e) => {
+            eprintln!("WARNING: CUDA availability check failed: {} — falling back to CPU", e);
+            false
+        }
+    }
+}
+
+#[cfg(not(feature = "cuda"))]
+pub fn check_cuda_available() -> bool {
+    false
 }
 
 impl fmt::Debug for ModelConfig {

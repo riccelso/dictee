@@ -1,4 +1,4 @@
-use parakeet_rs::{ParakeetTDT, Transcriber, TimestampMode, ExecutionConfig, ExecutionProvider};
+use parakeet_rs::{ParakeetTDT, Transcriber, TimestampMode, ExecutionConfig, ExecutionProvider, check_cuda_available};
 use std::env;
 use std::fs;
 use std::process::{Command, Stdio};
@@ -50,7 +50,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Configure execution provider
     #[cfg(feature = "cuda")]
-    let config = ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cuda);
+    let config = {
+        if check_cuda_available() {
+            ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cuda)
+        } else {
+            eprintln!("WARNING: CUDA unavailable — using CPU. Install: libcufft libcurand cuda-cudnn");
+            ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cpu)
+        }
+    };
     #[cfg(not(feature = "cuda"))]
     let config = ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cpu);
 

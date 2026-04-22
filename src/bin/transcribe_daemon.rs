@@ -1,9 +1,10 @@
-use parakeet_rs::{ExecutionConfig, ExecutionProvider, ParakeetTDT, TimestampMode, Transcriber};
+use parakeet_rs::{ExecutionConfig, ExecutionProvider, ParakeetTDT, TimestampMode, Transcriber, check_cuda_available};
 use std::env;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixListener;
 use std::path::Path;
+use std::process::Command;
 
 /// Returns the user-specific socket path.
 /// Uses $XDG_RUNTIME_DIR/transcribe.sock (default /run/user/UID/),
@@ -45,9 +46,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Configure CUDA if available
     #[cfg(feature = "cuda")]
-    let config = ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cuda);
+    let (config, requested_gpu) = {
+        let gpu_ok = check_cuda_available();
+        if gpu_ok {
+            (ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cuda), true)
+        } else {
+            notify_gpu_fallback();
+            (ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cpu), false)
+        }
+    };
     #[cfg(not(feature = "cuda"))]
-    let config = ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cpu);
+    let (config, requested_gpu) = (ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cpu), false);
+
+    let provider_label = if requested_gpu { "GPU (CUDA)" } else { "CPU" };
+    eprintln!("Execution provider: {}", provider_label);
 
     eprintln!("Loading model from {}...", model_dir);
     let mut parakeet = ParakeetTDT::from_pretrained(model_dir, Some(config))?;
@@ -149,6 +161,18 @@ fn transcribe_file(
 }
 
 use std::os::unix::fs::PermissionsExt;
+
+fn notify_gpu_fallback() {
+    eprintln!("WARNING: CUDA unavailable — running on CPU. Check: libcufft, libcurand, cuda-cudnn packages");
+    let _ = Command::new("notify-send")
+        .args([
+            "-u", "critical",
+            "-t", "15000",
+            "dictee: GPU unavailable!",
+            "CUDA libraries not found — transcription running on CPU.\nInstall: libcufft libcurand cuda-cudnn"
+        ])
+        .spawn();
+}
 
 #[cfg(test)]
 mod tests {

@@ -1,7 +1,7 @@
 #[cfg(feature = "sortformer")]
 use parakeet_rs::sortformer::{DiarizationConfig, Sortformer};
 #[cfg(feature = "sortformer")]
-use parakeet_rs::{ExecutionConfig, ExecutionProvider, ParakeetTDT, TimestampMode, Transcriber};
+use parakeet_rs::{ExecutionConfig, ExecutionProvider, ParakeetTDT, TimestampMode, Transcriber, check_cuda_available};
 #[cfg(feature = "sortformer")]
 use std::env;
 #[cfg(feature = "sortformer")]
@@ -77,7 +77,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Configure execution
         #[cfg(feature = "cuda")]
-        let config = ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cuda);
+        let config = {
+            if check_cuda_available() {
+                ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cuda)
+            } else {
+                eprintln!("WARNING: CUDA unavailable — using CPU. Install: libcufft libcurand cuda-cudnn");
+                ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cpu)
+            }
+        };
         #[cfg(not(feature = "cuda"))]
         let config = ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cpu);
 
