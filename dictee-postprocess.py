@@ -382,16 +382,203 @@ _TYPO_ELLIPSIS = re.compile(r"\.{3,}")  # ... → …
 _TYPO_EN_QUOTES = re.compile(r'"([^"]+)"')  # "x" → « x »
 
 
+def fix_portuguese_typography(text):
+    _NO_SPACE_BEFORE = re.compile(r'\s+([.,;:!?])')
+    _NO_SPACE_AFTER_OPEN = re.compile(r'([(•])\s+')
+    _EN_QUOTES = re.compile(r'"([^"]+)"')
+    _ELLIPSIS = re.compile(r'\.{3,}')
+    text = _ELLIPSIS.sub('\u2026', text)
+    text = _EN_QUOTES.sub(f'"\u2018\\1\u2019"', text)
+    text = _NO_SPACE_BEFORE.sub(r'\1', text)
+    text = _NO_SPACE_AFTER_OPEN.sub(r'\1 ', text)
+    return text
+
+
+_PT_COMMON_WORDS = frozenset({
+    "a", "o", "e", "é", "de", "do", "da", "em", "no", "na", "um", "uma",
+    "que", "não", "se", "por", "com", "para", "mas", "como", "mais",
+    "ao", "aos", "às", "à", "ou", "ele", "ela", "eles", "elas", "nos",
+    "nós", "vos", "lhe", "lhes", "meu", "minha", "teu", "tua", "seu",
+    "sua", "este", "esta", "esse", "essa", "aquele", "aquela", "isto",
+    "isso", "aquilo", "muito", "pouco", "tudo", "nada", "algo", "cada",
+    "quando", "onde", "quem", "qual", "quanto", "aqui", "ali", "lá",
+    "ainda", "já", "só", "também", "sempre", "nunca", "hoje", "ontem",
+    "amanhã", "bem", "mal", "sim", "entre", "sobre", "até", "depois",
+    "antes", "onde", "aonde", "porque", "pois", "portanto", "então",
+    "contudo", "todavia", "porém", "senão", "conforme", "segundo",
+    "era", "ser", "ter", "está", "estou", "estava", "foram", "fora",
+    "vai", "vou", "tem", "tinha", "têm", "fiz", "fez", "fizeram",
+    "pode", "posso", "deve", "deveria", "quer", "quero", "disse",
+    "diz", "vê", "vir", "vim", "vieram", "dar", "dei", "deu", "deram",
+    "ir", "irei", "iria", "fazer", "saber", "poder", "querer", "dizer",
+    "ver", "dar", "estar", "haver", "havia", "houve", "teria", "seria",
+})
+
+_EN_COMMON_WORDS = frozenset({
+    "the", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would",
+    "could", "should", "may", "might", "shall", "can",
+    "this", "that", "these", "those", "with", "from", "into",
+    "about", "than", "then", "there", "here", "where", "when",
+    "what", "which", "who", "whom", "how", "not", "but", "and",
+    "for", "you", "your", "they", "them", "their", "his", "her",
+    "she", "him", "it", "its", "my", "our", "we", "me", "us",
+    "all", "some", "any", "many", "much", "very", "just", "also",
+    "now", "still", "even", "only", "other", "new", "first",
+    "like", "get", "got", "make", "made", "know", "think", "say",
+    "said", "go", "went", "come", "came", "see", "saw", "take",
+    "look", "want", "need", "try", "use", "find", "give",
+})
+
+_EN_TO_PT = {
+    "the": "o",
+    "and": "e",
+    "is": "é",
+    "in": "em",
+    "to": "para",
+    "of": "de",
+    "that": "que",
+    "it": "isso",
+    "you": "você",
+    "he": "ele",
+    "was": "era",
+    "for": "por",
+    "on": "em",
+    "are": "são",
+    "with": "com",
+    "as": "como",
+    "his": "seu",
+    "they": "eles",
+    "at": "em",
+    "be": "ser",
+    "this": "este",
+    "have": "ter",
+    "from": "de",
+    "or": "ou",
+    "one": "um",
+    "had": "tinha",
+    "by": "por",
+    "but": "mas",
+    "not": "não",
+    "what": "que",
+    "all": "tudo",
+    "were": "eram",
+    "we": "nós",
+    "when": "quando",
+    "can": "pode",
+    "said": "disse",
+    "there": "lá",
+    "use": "usa",
+    "an": "um",
+    "each": "cada",
+    "which": "qual",
+    "she": "ela",
+    "do": "fazer",
+    "how": "como",
+    "their": "seu",
+    "if": "se",
+    "will": "vai",
+    "up": "cima",
+    "about": "sobre",
+    "out": "fora",
+    "many": "muitos",
+    "then": "então",
+    "them": "eles",
+    "these": "estes",
+    "so": "assim",
+    "some": "alguns",
+    "would": "seria",
+    "make": "fazer",
+    "like": "como",
+    "no": "não",
+    "has": "tem",
+    "him": "ele",
+    "time": "tempo",
+    "very": "muito",
+    "just": "só",
+    "know": "saber",
+    "take": "tomar",
+    "people": "pessoas",
+    "into": "em",
+    "year": "ano",
+    "your": "seu",
+    "good": "bom",
+    "some": "algum",
+    "could": "poderia",
+    "see": "ver",
+    "than": "que",
+    "now": "agora",
+    "look": "olhar",
+    "only": "só",
+    "come": "vir",
+    "its": "seu",
+    "over": "sobre",
+    "think": "pensar",
+    "also": "também",
+    "back": "voltar",
+    "after": "depois",
+    "work": "trabalho",
+    "first": "primeiro",
+    "well": "bem",
+    "even": "mesmo",
+    "want": "querer",
+    "because": "porque",
+    "any": "qualquer",
+    "these": "estes",
+    "give": "dar",
+    "day": "dia",
+    "most": "mais",
+    "find": "encontrar",
+    "here": "aqui",
+    "thing": "coisa",
+    "many": "muitos",
+    "right": "certo",
+    "still": "ainda",
+}
+
+
+def fix_pt_en_mixing(text):
+    if LANG != "pt":
+        return text
+    words = re.findall(r'\b[a-zA-ZÀ-ÿ]+\b', text)
+    if not words:
+        return text
+    en_count = sum(1 for w in words if w.lower() in _EN_COMMON_WORDS)
+    pt_count = sum(1 for w in words if w.lower() in _PT_COMMON_WORDS)
+    total = len(words)
+    if total == 0:
+        return text
+    en_ratio = en_count / total
+    pt_ratio = pt_count / total
+    if en_ratio > 0.6 and pt_ratio < 0.15:
+        if VERBOSE:
+            LOGGER.debug(
+                "language reject: pt expected, en_ratio=%.3f pt_ratio=%.3f",
+                en_ratio, pt_ratio,
+            )
+        return ""
+    if pt_ratio >= en_ratio and en_count > 0:
+        for en_word, pt_word in _EN_TO_PT.items():
+            pattern = re.compile(r'\b' + re.escape(en_word) + r'\b', re.IGNORECASE)
+
+            def _replace(m, repl=pt_word):
+                orig = m.group(0)
+                if orig.isupper():
+                    return repl.upper()
+                if orig[0].isupper():
+                    return repl[0].upper() + repl[1:]
+                return repl
+
+            text = pattern.sub(_replace, text)
+    return text
+
+
 def fix_french_typography(text):
     """Apply French typographic rules."""
-    # Ellipsis
     text = _TYPO_ELLIPSIS.sub("\u2026", text)
-    # English quotes → French quotes
     text = _TYPO_EN_QUOTES.sub(f"\u00ab{_NBSP}\\1{_NBSP}\u00bb", text)
-    # Non-breaking spaces before high punctuation
     text = _TYPO_BEFORE_THIN.sub(f"{_NNBSP}\\1", text)
     text = _TYPO_BEFORE_COLON.sub(f"{_NBSP}\\1", text)
-    # Spaces around guillemets
     text = _TYPO_AFTER_LGUILL.sub(f"\u00ab{_NBSP}", text)
     text = _TYPO_BEFORE_RGUILL.sub(f"{_NBSP}\u00bb", text)
     return text
@@ -890,6 +1077,16 @@ def main():
                 sys.stdout.write("")
                 return
 
+    # 5c. PT/EN language mixing detection and correction
+    if _env_bool("DICTEE_PP_LANG_MIXING", "true"):
+        start = time.perf_counter()
+        before = text
+        text = fix_pt_en_mixing(text)
+        _log_stage("pt_en_mixing", before, text, (time.perf_counter() - start) * 1000.0)
+        if not text:
+            sys.stdout.write("")
+            return
+
     # 6. Advanced French elisions (with aspirated h)
     if LANG == "fr" and _env_bool("DICTEE_PP_ELISIONS"):
         start = time.perf_counter()
@@ -910,6 +1107,13 @@ def main():
         before = text
         text = fix_french_typography(text)
         _log_stage("typography", before, text, (time.perf_counter() - start) * 1000.0)
+
+    # 8b. Portuguese typography
+    if LANG == "pt" and _env_bool("DICTEE_PP_TYPOGRAPHY"):
+        start = time.perf_counter()
+        before = text
+        text = fix_portuguese_typography(text)
+        _log_stage("pt_typography", before, text, (time.perf_counter() - start) * 1000.0)
 
     # 9. (final cleanup already in regex rules step 5)
 
