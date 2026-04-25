@@ -38,11 +38,29 @@ CLIPBOARD="${DICTEE_CLIPBOARD:-true}"
 ANIMATION="${DICTEE_ANIMATION:-speech}"
 PASTE_MODE="${DICTEE_PASTE_MODE:-clipboard}"  # auto|clipboard|dotool
 
-# Make sure child processes (dictee-postprocess, translators, etc.) receive
-# the effective source/target language even when dictee.conf is sourced
-# without "export" statements.
 export DICTEE_LANG_SOURCE="$LANG_SOURCE"
 export DICTEE_LANG_TARGET="$LANG_TARGET"
+
+# Resolve ONNX Runtime CUDA provider library path for GPU acceleration.
+# The system onnxruntime package lacks libonnxruntime_providers_cuda.so;
+# it may exist in ort.pyke cache or local build directories.
+_ort_cuda_provider_dirs=(
+    "$HOME/.cache/ort.pyke.io/dfbin/x86_64-unknown-linux-gnu/"*"/"
+    "$HOME/.local/share/opencode/worktree/dictee/"*"/target/release/"
+    "${XDG_DATA_HOME:-$HOME/.local/share}/dictee/cuda/"
+    "/usr/lib64/onnxruntime/"
+    "/usr/local/lib64/"
+)
+for _dir in "${_ort_cuda_provider_dirs[@]}"; do
+    if [ -f "${_dir}libonnxruntime_providers_cuda.so" ]; then
+        case ":${LD_LIBRARY_PATH}:" in
+            *":${_dir}:"*) ;;
+            *) export LD_LIBRARY_PATH="${_dir}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ;;
+        esac
+        break
+    fi
+done
+unset _dir _ort_cuda_provider_dirs
 
 # Détection du layout clavier pour dotool (localectl > setxkbmap > us)
 if [ -z "$DOTOOL_XKB_LAYOUT" ]; then

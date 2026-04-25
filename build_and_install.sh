@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "==> Building Rust binaries (release)"
-"$SCRIPT_DIR/build.sh"
+"$SCRIPT_DIR/build.sh" --cuda
 
 echo "==> Syncing latest scripts into pkg/ artifacts"
 cp -f "$SCRIPT_DIR/dictee" "$SCRIPT_DIR/pkg/dictee/usr/bin/dictee"
