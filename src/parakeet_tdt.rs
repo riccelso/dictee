@@ -61,13 +61,17 @@ impl ParakeetTDT {
         };
 
         let exec_config = config.unwrap_or_default();
+        eprintln!("DEBUG: exec_config: {:?}", exec_config);
 
         // Load vocab first to get the actual vocabulary size
         let vocab = Vocabulary::from_file(&vocab_path)?;
         let vocab_size = vocab.size();
+        eprintln!("DEBUG: vocab_size: {}", vocab_size);
 
         let model = ParakeetTDTModel::from_pretrained(path, exec_config, vocab_size)?;
+        eprintln!("DEBUG: model loaded OK");
         let decoder = ParakeetTDTDecoder::from_vocab(vocab);
+        eprintln!("DEBUG: decoder loaded OK");
 
         Ok(Self {
             model,
@@ -96,7 +100,9 @@ impl Transcriber for ParakeetTDT {
     ) -> Result<TranscriptionResult> {
         let features =
             audio::extract_features_raw(audio, sample_rate, channels, &self.preprocessor_config)?;
+        eprintln!("DEBUG: features shape: {:?}", features.shape());
         let (tokens, frame_indices, durations) = self.model.forward(features)?;
+        eprintln!("DEBUG: tokens: {}, frame_indices: {}, durations: {}", tokens.len(), frame_indices.len(), durations.len());
 
         let mut result = self.decoder.decode_with_timestamps(
             &tokens,

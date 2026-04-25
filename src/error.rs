@@ -5,7 +5,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug)]
 pub enum Error {
     Io(std::io::Error),
-    Ort(ort::Error),
+    Ort(String),
     Audio(String),
     Model(String),
     Tokenizer(String),
@@ -16,7 +16,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::Io(e) => write!(f, "IO error: {e}"),
-            Error::Ort(e) => write!(f, "ONNX Runtime error: {e}"),
+            Error::Ort(msg) => write!(f, "ONNX Runtime error: {msg}"),
             Error::Audio(msg) => write!(f, "Audio processing error: {msg}"),
             Error::Model(msg) => write!(f, "Model error: {msg}"),
             Error::Tokenizer(msg) => write!(f, "Tokenizer error: {msg}"),
@@ -33,9 +33,9 @@ impl From<std::io::Error> for Error {
     }
 }
 
-impl From<ort::Error> for Error {
-    fn from(e: ort::Error) -> Self {
-        Error::Ort(e)
+impl<R> From<ort::Error<R>> for Error {
+    fn from(e: ort::Error<R>) -> Self {
+        Error::Ort(e.to_string())
     }
 }
 

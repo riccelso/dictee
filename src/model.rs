@@ -31,7 +31,7 @@ impl ParakeetModel {
         let builder = Session::builder()?;
         eprintln!("  Session builder created");
 
-        let builder = exec_config.apply_to_session_builder(builder)?;
+        let mut builder = exec_config.apply_to_session_builder(builder)?;
         eprintln!("  Execution provider applied to session builder");
 
         let session = builder.commit_from_file(model_path)?;

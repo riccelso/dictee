@@ -24,6 +24,13 @@ pub struct ParakeetTDTModel {
 }
 
 impl ParakeetTDTModel {
+    fn prefer_fp16_models() -> bool {
+        matches!(
+            std::env::var("DICTEE_PREFER_FP16").ok().as_deref(),
+            Some("1") | Some("true") | Some("TRUE") | Some("yes") | Some("YES")
+        )
+    }
+
     /// Load TDT model from directory containing encoder and decoder_joint ONNX files
     ///
     /// # Arguments
@@ -45,12 +52,12 @@ impl ParakeetTDTModel {
 
         // Load encoder
         let builder = Session::builder()?;
-        let builder = exec_config.apply_to_session_builder(builder)?;
+        let mut builder = exec_config.apply_to_session_builder(builder)?;
         let encoder = builder.commit_from_file(&encoder_path)?;
 
         // Load decoder_joint
         let builder = Session::builder()?;
-        let builder = exec_config.apply_to_session_builder(builder)?;
+        let mut builder = exec_config.apply_to_session_builder(builder)?;
         let decoder_joint = builder.commit_from_file(&decoder_joint_path)?;
 
         Ok(Self {
@@ -61,12 +68,26 @@ impl ParakeetTDTModel {
     }
     //file names simply from: https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/tree/main
     fn find_encoder(dir: &Path) -> Result<PathBuf> {
-        let candidates = [
+        let candidates_fp16 = [
+            "encoder-model.fp16.onnx",
+            "encoder.fp16.onnx",
             "encoder-model.onnx",
             "encoder.onnx",
             "encoder-model.int8.onnx",
         ];
-        for candidate in &candidates {
+        let candidates_default = [
+            "encoder-model.onnx",
+            "encoder.onnx",
+            "encoder-model.fp16.onnx",
+            "encoder.fp16.onnx",
+            "encoder-model.int8.onnx",
+        ];
+        let candidates = if Self::prefer_fp16_models() {
+            &candidates_fp16
+        } else {
+            &candidates_default
+        };
+        for candidate in candidates {
             let path = dir.join(candidate);
             if path.exists() {
                 return Ok(path);
@@ -91,13 +112,30 @@ impl ParakeetTDTModel {
 
 
     fn find_decoder_joint(dir: &Path) -> Result<PathBuf> {
-        let candidates = [
+        let candidates_fp16 = [
+            "decoder_joint-model.fp16.onnx",
+            "decoder_joint.fp16.onnx",
             "decoder_joint-model.onnx",
-            "decoder_joint-model.int8.onnx",
             "decoder_joint.onnx",
+            "decoder_joint-model.int8.onnx",
+            "decoder-model.fp16.onnx",
             "decoder-model.onnx",
         ];
-        for candidate in &candidates {
+        let candidates_default = [
+            "decoder_joint-model.onnx",
+            "decoder_joint.onnx",
+            "decoder_joint-model.fp16.onnx",
+            "decoder_joint.fp16.onnx",
+            "decoder_joint-model.int8.onnx",
+            "decoder-model.onnx",
+            "decoder-model.fp16.onnx",
+        ];
+        let candidates = if Self::prefer_fp16_models() {
+            &candidates_fp16
+        } else {
+            &candidates_default
+        };
+        for candidate in candidates {
             let path = dir.join(candidate);
             if path.exists() {
                 return Ok(path);
@@ -171,6 +209,7 @@ impl ParakeetTDTModel {
             .map_err(|e| Error::Model(format!("Failed to create encoder array: {e}")))?;
 
         // TDT encoder outputs [batch, encoder_dim, time] directly
+        eprintln!("DEBUG run_encoder: shape=({},{},{}), encoder_len={}, data_sample={:?}", b, t, d, lens_data[0], &data[..10.min(data.len())]);
         Ok((encoder_array, lens_data[0]))
     }
 
@@ -235,6 +274,12 @@ impl ParakeetTDTModel {
                 .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
                 .map(|(idx, _)| idx)
                 .unwrap_or(blank_id);
+
+            if t < 3 {
+                let max_logit = vocab_logits.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+                let blank_logit = vocab_logits.get(blank_id).copied().unwrap_or(0.0);
+                eprintln!("DEBUG decode t={}: token_id={}, blank_id={}, max_logit={:.4}, blank_logit={:.4}, logits_len={}", t, token_id, blank_id, max_logit, blank_logit, logits_data.len());
+            }
 
             let duration_step = if !duration_logits.is_empty() {
                 duration_logits

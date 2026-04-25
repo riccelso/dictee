@@ -6,6 +6,14 @@ use ort::session::builder::SessionBuilder;
 #[cfg(feature = "cuda")]
 use ort::ep::{CUDA, ExecutionProvider as OrtExecutionProvider};
 
+#[cfg(feature = "cuda")]
+fn cuda_strict_mode() -> bool {
+    matches!(
+        std::env::var("DICTEE_CUDA_STRICT").ok().as_deref(),
+        Some("1") | Some("true") | Some("TRUE") | Some("yes") | Some("YES")
+    )
+}
+
 // Hardware acceleration options. CPU is default and most reliable.
 // GPU providers (CUDA, TensorRT, MIGraphX) offer 5-10x speedup but require specific hardware.
 // All GPU providers automatically fall back to CPU if they fail.
@@ -175,10 +183,21 @@ impl ModelConfig {
             ExecutionProvider::Cpu => builder,
 
             #[cfg(feature = "cuda")]
-            ExecutionProvider::Cuda => builder.with_execution_providers([
-                ort::ep::CUDA::default().build(),
-                CPUExecutionProvider::default().build().error_on_failure(),
-            ])?,
+            ExecutionProvider::Cuda => {
+                if cuda_strict_mode() {
+                    eprintln!(
+                        "CUDA strict mode enabled (DICTEE_CUDA_STRICT=1): disabling CPU EP fallback"
+                    );
+                    builder.with_execution_providers([
+                        ort::ep::CUDA::default().build().error_on_failure(),
+                    ])?
+                } else {
+                    builder.with_execution_providers([
+                        ort::ep::CUDA::default().build(),
+                        CPUExecutionProvider::default().build().error_on_failure(),
+                    ])?
+                }
+            }
 
             #[cfg(feature = "tensorrt")]
             ExecutionProvider::TensorRT => builder.with_execution_providers([
