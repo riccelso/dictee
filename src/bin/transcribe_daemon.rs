@@ -47,23 +47,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Configure CUDA if available
     #[cfg(feature = "cuda")]
     let (config, requested_gpu) = {
+        eprintln!("=== CUDA Configuration ===");
         let gpu_ok = check_cuda_available();
         if gpu_ok {
+            eprintln!("✓ CUDA provider requested and available");
             (ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cuda), true)
         } else {
             notify_gpu_fallback();
+            eprintln!("✗ CUDA provider requested but NOT available - falling back to CPU");
             (ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cpu), false)
         }
     };
     #[cfg(not(feature = "cuda"))]
-    let (config, requested_gpu) = (ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cpu), false);
+    let (config, requested_gpu) = {
+        eprintln!("=== CUDA Configuration ===");
+        eprintln!("✗ CUDA feature not compiled - using CPU");
+        (ExecutionConfig::new().with_execution_provider(ExecutionProvider::Cpu), false)
+    };
 
     let provider_label = if requested_gpu { "GPU (CUDA)" } else { "CPU" };
-    eprintln!("Execution provider: {}", provider_label);
+    eprintln!("Requested execution provider: {}", provider_label);
 
-    eprintln!("Loading model from {}...", model_dir);
+    eprintln!("\n=== Loading Model ===");
+    eprintln!("Model path: {}", model_dir);
+    eprintln!("Environment variables:");
+    if let Ok(val) = env::var("ORT_DYLIB_PATH") {
+        eprintln!("  ORT_DYLIB_PATH: {}", val);
+    }
+    if let Ok(val) = env::var("LD_LIBRARY_PATH") {
+        eprintln!("  LD_LIBRARY_PATH: {}", val);
+    }
+    if let Ok(val) = env::var("CUDA_VISIBLE_DEVICES") {
+        eprintln!("  CUDA_VISIBLE_DEVICES: {}", val);
+    }
+    if let Ok(val) = env::var("ORT_CUDA_PROVIDER_ENABLED") {
+        eprintln!("  ORT_CUDA_PROVIDER_ENABLED: {}", val);
+    }
+
     let mut parakeet = ParakeetTDT::from_pretrained(model_dir, Some(config))?;
-    eprintln!("Model loaded. Listening on {}", socket_path);
+    eprintln!("\n✓ Model loaded successfully");
+    eprintln!("Listening on {}", socket_path);
 
     let listener = UnixListener::bind(&socket_path)?;
 
@@ -104,6 +127,11 @@ fn transcribe_file(
     parakeet: &mut ParakeetTDT,
     audio_path: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
+    eprintln!("\n=== Transcription Started ===");
+    eprintln!("Audio file: {}", audio_path);
+
+    let start_time = std::time::Instant::now();
+
     let mut reader = hound::WavReader::open(audio_path)?;
     let spec = reader.spec();
 
@@ -116,22 +144,31 @@ fn transcribe_file(
     };
 
     let chunk_samples = CHUNK_SECS * spec.sample_rate as usize;
+    let duration_secs = audio.len() as f64 / spec.sample_rate as f64;
+    eprintln!("Audio duration: {:.2}s", duration_secs);
+    eprintln!("Sample rate: {} Hz, Channels: {}", spec.sample_rate, spec.channels);
+    eprintln!("Audio samples: {}", audio.len());
 
     if audio.len() <= chunk_samples {
+        eprintln!("Processing as single chunk...");
+        let chunk_start = std::time::Instant::now();
+
         let result = parakeet.transcribe_samples(
             audio,
             spec.sample_rate,
             spec.channels,
             Some(TimestampMode::Sentences),
         )?;
+
+        let chunk_duration = chunk_start.elapsed();
+        let total_duration = start_time.elapsed();
+        eprintln!("Transcription time: {:.2}s", chunk_duration.as_secs_f64());
+        eprintln!("Realtime factor: {:.2}x", duration_secs / chunk_duration.as_secs_f64());
+        eprintln!("=== Transcription Complete ===");
         return Ok(result.text.trim().to_string());
     }
 
-    let duration_secs = audio.len() as f64 / spec.sample_rate as f64;
-    eprintln!(
-        "Long audio ({:.1}s), splitting into {}s chunks...",
-        duration_secs, CHUNK_SECS
-    );
+    eprintln!("Long audio ({:.1}s), splitting into {}s chunks...", duration_secs, CHUNK_SECS);
 
     let total_chunks = (audio.len() + chunk_samples - 1) / chunk_samples;
     let mut parts: Vec<String> = Vec::new();
@@ -142,7 +179,8 @@ fn transcribe_file(
             chunk_vec.resize(chunk_samples, 0.0f32);
         }
 
-        eprintln!("  chunk {}/{}...", i + 1, total_chunks);
+        eprintln!("  Processing chunk {}/{}...", i + 1, total_chunks);
+        let chunk_start = std::time::Instant::now();
 
         let result = parakeet.transcribe_samples(
             chunk_vec,
@@ -151,11 +189,19 @@ fn transcribe_file(
             Some(TimestampMode::Sentences),
         )?;
 
+        let chunk_duration = chunk_start.elapsed();
+        eprintln!("    Chunk time: {:.2}s", chunk_duration.as_secs_f64());
+
         let text = result.text.trim().to_string();
         if !text.is_empty() {
             parts.push(text);
         }
     }
+
+    let total_duration = start_time.elapsed();
+    eprintln!("Total transcription time: {:.2}s", total_duration.as_secs_f64());
+    eprintln!("Average realtime factor: {:.2}x", duration_secs / total_duration.as_secs_f64());
+    eprintln!("=== Transcription Complete ===");
 
     Ok(parts.join(" "))
 }

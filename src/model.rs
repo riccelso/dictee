@@ -21,12 +21,26 @@ impl ParakeetModel {
     ) -> Result<Self> {
         let model_path = model_path.as_ref();
 
+        eprintln!("Building ONNX Runtime session...");
+        eprintln!("  Model path: {}", model_path.display());
+        eprintln!("  Execution provider: {:?}", exec_config.execution_provider);
+
         // Use default config (hardcoded constants for Parakeet-CTC-0.6b: please see: json files https://huggingface.co/onnx-community/parakeet-ctc-0.6b-ONNX/tree/main)
         let config = ModelConfig::default();
 
         let builder = Session::builder()?;
+        eprintln!("  Session builder created");
+
         let builder = exec_config.apply_to_session_builder(builder)?;
+        eprintln!("  Execution provider applied to session builder");
+
         let session = builder.commit_from_file(model_path)?;
+        eprintln!("  Session committed from file");
+
+        eprintln!("  Session inputs: {}", session.inputs().len());
+        eprintln!("  Session outputs: {}", session.outputs().len());
+
+        eprintln!("✓ Session created successfully");
 
         Ok(Self { session, config })
     }

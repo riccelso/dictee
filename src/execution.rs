@@ -44,14 +44,44 @@ pub struct ModelConfig {
 
 #[cfg(feature = "cuda")]
 pub fn check_cuda_available() -> bool {
+    use std::env;
+
+    eprintln!("Checking CUDA availability...");
+    eprintln!("  CUDA feature: compiled in");
+
+    // Check environment variables
+    if let Ok(cuda_devices) = env::var("CUDA_VISIBLE_DEVICES") {
+        eprintln!("  CUDA_VISIBLE_DEVICES: {}", cuda_devices);
+    } else {
+        eprintln!("  CUDA_VISIBLE_DEVICES: not set");
+    }
+
+    if let Ok(ort_dylib) = env::var("ORT_DYLIB_PATH") {
+        eprintln!("  ORT_DYLIB_PATH: {}", ort_dylib);
+    } else {
+        eprintln!("  ORT_DYLIB_PATH: not set");
+    }
+
+    if let Ok(ld_library) = env::var("LD_LIBRARY_PATH") {
+        eprintln!("  LD_LIBRARY_PATH: {}", ld_library);
+    } else {
+        eprintln!("  LD_LIBRARY_PATH: not set");
+    }
+
     match CUDA::default().is_available() {
-        Ok(true) => true,
+        Ok(true) => {
+            eprintln!("  ✓ CUDA provider available");
+            true
+        }
         Ok(false) => {
-            eprintln!("WARNING: CUDA execution provider compiled but NOT available — missing libraries or driver");
+            eprintln!("  ✗ CUDA provider compiled but NOT available");
+            eprintln!("    Possible causes: missing CUDA libraries, driver issues, or incompatibility");
+            eprintln!("    Check: libcufft, libcublas, libcudart, cuda-cudnn packages");
             false
         }
         Err(e) => {
-            eprintln!("WARNING: CUDA availability check failed: {} — falling back to CPU", e);
+            eprintln!("  ✗ CUDA availability check failed: {}", e);
+            eprintln!("    Falling back to CPU");
             false
         }
     }
