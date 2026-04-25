@@ -6,6 +6,29 @@ use std::os::unix::net::UnixListener;
 use std::path::Path;
 use std::process::Command;
 
+fn env_usize(key: &str) -> Option<usize> {
+    let raw = env::var(key).ok()?;
+    let value = raw.trim().parse::<usize>().ok()?;
+    if value == 0 {
+        return None;
+    }
+    Some(value)
+}
+
+fn runtime_threads(requested_gpu: bool) -> (usize, usize) {
+    let default_intra = if requested_gpu { 1 } else { 4 };
+    let default_inter = 1;
+
+    let intra = env_usize("DICTEE_INTRA_THREADS").unwrap_or(default_intra);
+    let inter = env_usize("DICTEE_INTER_THREADS").unwrap_or(default_inter);
+    (intra, inter)
+}
+
+fn chunk_seconds() -> usize {
+    // Longer chunks reduce CPU overhead from repeated setup/teardown on long files.
+    env_usize("DICTEE_CHUNK_SECS").unwrap_or(120)
+}
+
 /// Returns the user-specific socket path.
 /// Uses $XDG_RUNTIME_DIR/transcribe.sock (default /run/user/UID/),
 /// or /tmp/transcribe-UID.sock as fallback.
@@ -66,7 +89,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let provider_label = if requested_gpu { "GPU (CUDA)" } else { "CPU" };
+    let (intra_threads, inter_threads) = runtime_threads(requested_gpu);
+    let config = config
+        .with_intra_threads(intra_threads)
+        .with_inter_threads(inter_threads);
     eprintln!("Requested execution provider: {}", provider_label);
+    eprintln!("ORT threads: intra={}, inter={}", intra_threads, inter_threads);
 
     eprintln!("\n=== Loading Model ===");
     eprintln!("Model path: {}", model_dir);
@@ -121,8 +149,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-const CHUNK_SECS: usize = 30;
-
 fn transcribe_file(
     parakeet: &mut ParakeetTDT,
     audio_path: &str,
@@ -143,7 +169,8 @@ fn transcribe_file(
             .collect::<Result<Vec<_>, _>>()?,
     };
 
-    let chunk_samples = CHUNK_SECS * spec.sample_rate as usize;
+    let chunk_secs = chunk_seconds();
+    let chunk_samples = chunk_secs * spec.sample_rate as usize;
     let duration_secs = audio.len() as f64 / spec.sample_rate as f64;
     eprintln!("Audio duration: {:.2}s", duration_secs);
     eprintln!("Sample rate: {} Hz, Channels: {}", spec.sample_rate, spec.channels);
@@ -161,14 +188,16 @@ fn transcribe_file(
         )?;
 
         let chunk_duration = chunk_start.elapsed();
-        let total_duration = start_time.elapsed();
         eprintln!("Transcription time: {:.2}s", chunk_duration.as_secs_f64());
         eprintln!("Realtime factor: {:.2}x", duration_secs / chunk_duration.as_secs_f64());
         eprintln!("=== Transcription Complete ===");
         return Ok(result.text.trim().to_string());
     }
 
-    eprintln!("Long audio ({:.1}s), splitting into {}s chunks...", duration_secs, CHUNK_SECS);
+    eprintln!(
+        "Long audio ({:.1}s), splitting into {}s chunks...",
+        duration_secs, chunk_secs
+    );
 
     let total_chunks = (audio.len() + chunk_samples - 1) / chunk_samples;
     let mut parts: Vec<String> = Vec::new();
@@ -226,13 +255,13 @@ mod tests {
 
     #[test]
     fn test_chunk_samples_calculation() {
-        let chunk_samples = CHUNK_SECS * 16000usize;
+        let chunk_samples = 120 * 16000usize;
         assert_eq!(chunk_samples, 480000);
     }
 
     #[test]
     fn test_chunk_count_short_audio() {
-        let chunk_samples = CHUNK_SECS * 16000usize;
+        let chunk_samples = 120 * 16000usize;
         let audio_len = chunk_samples;
         let total_chunks = (audio_len + chunk_samples - 1) / chunk_samples;
         assert_eq!(total_chunks, 1);
@@ -240,7 +269,7 @@ mod tests {
 
     #[test]
     fn test_chunk_count_exact_multiple() {
-        let chunk_samples = CHUNK_SECS * 16000usize;
+        let chunk_samples = 120 * 16000usize;
         let audio_len = chunk_samples * 3;
         let total_chunks = (audio_len + chunk_samples - 1) / chunk_samples;
         assert_eq!(total_chunks, 3);
@@ -248,7 +277,7 @@ mod tests {
 
     #[test]
     fn test_chunk_count_with_remainder() {
-        let chunk_samples = CHUNK_SECS * 16000usize;
+        let chunk_samples = 120 * 16000usize;
         let audio_len = chunk_samples * 2 + 1000;
         let total_chunks = (audio_len + chunk_samples - 1) / chunk_samples;
         assert_eq!(total_chunks, 3);
